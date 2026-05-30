@@ -1,0 +1,5 @@
+# Development / CI-only tooling for the AI inference service.
+-r requirements.txt
+
+flake8==7.1.1
+mypy==1.14.1
