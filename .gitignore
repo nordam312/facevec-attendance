@@ -1,0 +1,51 @@
+# ---- Dependencies ----
+node_modules/
+.pnp.*
+.yarn/*
+**/__pycache__/
+*.py[cod]
+.venv/
+venv/
+.eggs/
+*.egg-info/
+
+# ---- Build artifacts ----
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+
+# ---- Environment / secrets ----
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ---- Test / coverage ----
+coverage/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+playwright-report/
+test-results/
+
+# ---- Logs ----
+logs/
+*.log
+npm-debug.log*
+
+# ---- OS / editor ----
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# ---- Docker ----
+*.local.yml
+
+# ---- ML model weights (downloaded at runtime, never committed) ----
+**/models/*.onnx
+**/.insightface/

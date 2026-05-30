@@ -1,0 +1,109 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, develop]
+
+# Cancel superseded runs on the same PR branch.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Gateway — ESLint + strict TypeScript type-check.
+  # ---------------------------------------------------------------------------
+  lint-gateway:
+    name: Lint · Gateway (ESLint + tsc)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/gateway
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node (version from .nvmrc)
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: services/gateway/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+
+  # ---------------------------------------------------------------------------
+  # Web — ESLint (next lint) + TypeScript type-check.
+  # ---------------------------------------------------------------------------
+  lint-web:
+    name: Lint · Web (ESLint + tsc)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node (version from .nvmrc)
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+
+  # ---------------------------------------------------------------------------
+  # AI inference — flake8 + mypy.
+  # ---------------------------------------------------------------------------
+  lint-ai:
+    name: Lint · AI (flake8 + mypy)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/ai-inference
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: services/ai-inference/requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - run: flake8 app
+      - run: mypy app
+
+  # ---------------------------------------------------------------------------
+  # Docker — verify every service image builds (matrix, no push). Layer cache is
+  # shared with the CD pipeline via the GitHub Actions cache backend.
+  # ---------------------------------------------------------------------------
+  docker-build:
+    name: Docker build · ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: gateway
+            context: services/gateway
+          - service: ai-inference
+            context: services/ai-inference
+          - service: web
+            context: apps/web
+            build-args: |
+              NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: false
+          tags: facevec/${{ matrix.service }}:ci
+          build-args: ${{ matrix.build-args }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}

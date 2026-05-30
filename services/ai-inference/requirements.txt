@@ -1,0 +1,10 @@
+# Phase 0 runtime dependencies for the AI inference service.
+# The heavy ML stack (insightface, onnxruntime, opencv-python-headless, numpy,
+# pgvector, aio-pika) is added in Phase 4 alongside the embedding pipeline; the
+# Dockerfile already provisions the system libraries those packages require.
+
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+pydantic-settings==2.7.0
+structlog==24.4.0
