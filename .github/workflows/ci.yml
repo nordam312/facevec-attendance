@@ -5,6 +5,7 @@ on:
     branches: [main, develop]
 
 # Cancel superseded runs on the same PR branch.
+# في حال تم رفع كود جديد على نفس الـ PR، يتم إلغاء الفحص السابق فوراً وتشغيل فحص جديد للكود الأحدث توفيراً للوقت والموارد.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
