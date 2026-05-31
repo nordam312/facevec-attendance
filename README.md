@@ -124,6 +124,46 @@ Every backend service exposes:
 
 ---
 
+## Persistence & migrations
+
+The data model lives in the **gateway** service (it owns `DATABASE_URL`):
+
+```
+services/gateway/
+├── prisma/
+│   ├── schema.prisma          # relational model, enums, FKs, indexes
+│   └── migrations/            # SQL migrations (applied with `migrate deploy`)
+└── src/domain/                # framework-agnostic domain entities & rules
+```
+
+Prisma owns the relational schema; two pgvector features it cannot express are
+applied as raw SQL inside the migrations:
+
+- **`vector(512)`** column on `face_embeddings` (declared `Unsupported(...)` in
+  the schema so Prisma stays drift-aware; read back via `$queryRaw`).
+- **HNSW index** `USING hnsw (embedding vector_cosine_ops)` for cosine-distance
+  (`<=>`) nearest-neighbour search.
+
+```bash
+cd services/gateway
+cp .env.example .env                     # set DATABASE_URL (localhost when outside Compose)
+npm install
+npm run db:migrate                       # prisma migrate deploy  (apply existing migrations)
+npm run db:migrate:dev -- --name <name>  # author a new migration during development
+npm run db:generate                      # regenerate the typed Prisma client
+```
+
+> The HNSW index is intentionally **migration-only** (not representable in
+> `schema.prisma`). Apply migrations with `db:migrate` (`migrate deploy`) — the
+> path used by Docker/CI — to avoid `migrate dev`'s drift prompt for that index.
+
+The `src/domain/` layer is pure TypeScript — branded id types, the `Role`/RBAC
+capability map, entity interfaces, and rules such as `cosineSimilarity` and
+refresh-token rotation checks. It imports nothing from Prisma or Express;
+Phase 2 maps persisted rows onto these entities.
+
+---
+
 ## Delivery roadmap
 
 This project is delivered in strict, reviewable phases.
@@ -131,7 +171,7 @@ This project is delivered in strict, reviewable phases.
 | Phase | Scope                                                                 |
 | ----- | --------------------------------------------------------------------- |
 | **0** | **Monorepo skeleton, Dockerfiles, compose, env templates, README** ✅ |
-| 1     | Postgres schema (Prisma + raw SQL for pgvector/HNSW), domain entities |
+| **1** | **Postgres schema (Prisma + raw SQL pgvector/HNSW), domain entities** ✅ |
 | 2     | Express gateway — routing, Zod validation, middleware stack           |
 | 3     | RabbitMQ producer/consumer + Transactional Outbox                     |
 | 4     | FastAPI inference — InsightFace pipeline, embedding endpoint          |

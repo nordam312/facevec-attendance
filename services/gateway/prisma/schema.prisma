@@ -1,0 +1,206 @@
+// =============================================================================
+// FaceVec — persistence schema (PostgreSQL 17 + pgvector).
+//
+// Prisma owns the *relational* model (tables, enums, foreign keys, B-tree /
+// unique indexes). Two things Prisma's schema language cannot express are
+// applied via raw SQL in the migration that ships alongside this file:
+//
+//   1. The `vector(512)` column type for face embeddings — declared here as
+//      `Unsupported(...)` so Prisma is drift-aware, but read back through
+//      `$queryRaw` (the generated client cannot select Unsupported columns).
+//   2. The HNSW approximate-nearest-neighbour index over that column, using the
+//      `vector_cosine_ops` operator class — see `migrations/.../migration.sql`.
+//
+// Identification (Phase 4+) ranks candidates with the cosine-distance operator
+// `<=>`; a match is accepted when cosine similarity exceeds FACE_MATCH_THRESHOLD
+// (default 0.75 — see src/domain/constants.ts).
+// =============================================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector, pgcrypto, pg_trgm]
+}
+
+// ---- Enums ------------------------------------------------------------------
+
+enum Role {
+  PROFESSOR
+  ADMIN
+  STUDENT
+}
+
+enum SessionStatus {
+  OPEN
+  CLOSED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  LATE
+  ABSENT
+}
+
+enum AttendanceMethod {
+  FACE
+  MANUAL
+}
+
+// ---- Identity & auth --------------------------------------------------------
+
+/// An authenticated principal. Professors own courses & sessions; admins manage
+/// the platform; students may optionally hold a login linked to their profile.
+model User {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         Role     @default(STUDENT)
+  displayName  String   @map("display_name")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  student         Student?            @relation("StudentAccount")
+  coursesTaught   Course[]            @relation("CourseProfessor")
+  sessionsCreated AttendanceSession[] @relation("SessionCreator")
+  refreshTokens   RefreshToken[]
+
+  @@map("users")
+}
+
+/// Refresh-token rotation: each issued token is stored hashed (never raw). On
+/// refresh the old token is revoked and points to its successor via
+/// `replacedById`, yielding an auditable rotation chain and reuse detection.
+model RefreshToken {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  tokenHash    String    @unique @map("token_hash")
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(6)
+  replacedById String?   @unique @map("replaced_by_id") @db.Uuid
+  userAgent    String?   @map("user_agent")
+  ip           String?
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replacedBy  RefreshToken?  @relation("TokenRotation", fields: [replacedById], references: [id], onDelete: SetNull)
+  replaces    RefreshToken?  @relation("TokenRotation")
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ---- Domain: people, courses, embeddings ------------------------------------
+
+/// A person enrolled for attendance. Identified biometrically by their face
+/// embeddings; may exist without a login (`userId` null) for roster-only import.
+model Student {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentNumber String   @unique @map("student_number")
+  fullName      String   @map("full_name")
+  email         String?  @unique
+  userId        String?  @unique @map("user_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user              User?              @relation("StudentAccount", fields: [userId], references: [id], onDelete: SetNull)
+  embeddings        FaceEmbedding[]
+  enrollments       CourseEnrollment[]
+  attendanceRecords AttendanceRecord[]
+
+  @@map("students")
+}
+
+/// A single 512-d face embedding extracted at enrollment. A student may have
+/// several (different captures / models) to improve recall. The `embedding`
+/// column is `vector(512)` with an HNSW index — both applied via raw SQL.
+model FaceEmbedding {
+  id             String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentId      String                  @map("student_id") @db.Uuid
+  embedding      Unsupported("vector(512)")
+  model          String                  @default("buffalo_l")
+  quality        Float?
+  sourceImageHash String?                @map("source_image_hash")
+  createdAt      DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@map("face_embeddings")
+}
+
+/// A course/section owned by a professor.
+model Course {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String   @unique
+  title       String
+  professorId String   @map("professor_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  professor   User                @relation("CourseProfessor", fields: [professorId], references: [id], onDelete: Restrict)
+  enrollments CourseEnrollment[]
+  sessions    AttendanceSession[]
+
+  @@index([professorId])
+  @@map("courses")
+}
+
+/// Roster join row: which student belongs to which course.
+model CourseEnrollment {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  courseId  String   @map("course_id") @db.Uuid
+  studentId String   @map("student_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  course  Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, studentId])
+  @@index([studentId])
+  @@map("course_enrollments")
+}
+
+// ---- Attendance -------------------------------------------------------------
+
+/// A live attendance window opened by a professor for a course.
+model AttendanceSession {
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  courseId    String        @map("course_id") @db.Uuid
+  createdById String        @map("created_by_id") @db.Uuid
+  status      SessionStatus @default(OPEN)
+  startedAt   DateTime      @default(now()) @map("started_at") @db.Timestamptz(6)
+  endedAt     DateTime?     @map("ended_at") @db.Timestamptz(6)
+
+  course    Course             @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  createdBy User               @relation("SessionCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  records   AttendanceRecord[]
+
+  @@index([courseId])
+  @@index([createdById])
+  @@map("attendance_sessions")
+}
+
+/// One student's presence in one session. The (session, student) uniqueness is
+/// the idempotency boundary: repeated recognitions never double-count.
+model AttendanceRecord {
+  id         String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId  String           @map("session_id") @db.Uuid
+  studentId  String           @map("student_id") @db.Uuid
+  status     AttendanceStatus @default(PRESENT)
+  method     AttendanceMethod @default(FACE)
+  similarity Float?
+  capturedAt DateTime         @default(now()) @map("captured_at") @db.Timestamptz(6)
+
+  session AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  student Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, studentId])
+  @@index([studentId])
+  @@map("attendance_records")
+}

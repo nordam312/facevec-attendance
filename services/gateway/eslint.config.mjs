@@ -13,5 +13,17 @@ export default tseslint.config(
       ecmaVersion: 2023,
       sourceType: 'module',
     },
+    rules: {
+      // Allow the `const { secret, ...rest } = obj` omit idiom and `_`-prefixed
+      // intentional throwaways (e.g. unused fields, placeholder parameters).
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          ignoreRestSiblings: true,
+        },
+      ],
+    },
   },
 );
