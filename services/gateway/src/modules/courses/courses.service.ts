@@ -5,6 +5,8 @@ import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '.
 import { toSkipTake } from '../../http/common.schemas.js';
 import type { Page } from '../../http/pagination.js';
 import type { AuthContext } from '../../http/types.js';
+import { EventType } from '../../messaging/events.js';
+import { recordEvent } from '../../messaging/outbox.js';
 import type {
   CreateCourseInput,
   ListCoursesQuery,
@@ -126,9 +128,18 @@ export async function enrollStudent(
 ): Promise<EnrollmentWithStudent> {
   await getCourseForActor(courseId, actor);
   try {
-    return await prisma.courseEnrollment.create({
-      data: { courseId, studentId },
-      include: { student: true },
+    return await prisma.$transaction(async (tx) => {
+      const enrollment = await tx.courseEnrollment.create({
+        data: { courseId, studentId },
+        include: { student: true },
+      });
+      await recordEvent(tx, {
+        aggregateType: 'Course',
+        aggregateId: courseId,
+        eventType: EventType.CourseStudentEnrolled,
+        payload: { enrollmentId: enrollment.id, courseId, studentId },
+      });
+      return enrollment;
     });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError) {

@@ -10,6 +10,8 @@ import { ConflictError, ForbiddenError, NotFoundError } from '../../errors/index
 import { toSkipTake } from '../../http/common.schemas.js';
 import type { Page } from '../../http/pagination.js';
 import type { AuthContext } from '../../http/types.js';
+import { EventType } from '../../messaging/events.js';
+import { recordEvent } from '../../messaging/outbox.js';
 import { getCourseForActor } from '../courses/courses.service.js';
 import type { MarkAttendanceInput } from './attendance.schemas.js';
 
@@ -85,16 +87,34 @@ export async function markAttendance(
     throw new ConflictError('Cannot record attendance for a closed session');
   }
   try {
-    return await prisma.attendanceRecord.upsert({
-      where: { sessionId_studentId: { sessionId, studentId: input.studentId } },
-      create: {
-        sessionId,
-        studentId: input.studentId,
-        status: input.status,
-        method: AttendanceMethod.MANUAL,
-      },
-      update: { status: input.status, method: AttendanceMethod.MANUAL },
-      include: { student: true },
+    // Upsert the record and emit the event atomically (transactional outbox).
+    return await prisma.$transaction(async (tx) => {
+      const record = await tx.attendanceRecord.upsert({
+        where: { sessionId_studentId: { sessionId, studentId: input.studentId } },
+        create: {
+          sessionId,
+          studentId: input.studentId,
+          status: input.status,
+          method: AttendanceMethod.MANUAL,
+        },
+        update: { status: input.status, method: AttendanceMethod.MANUAL },
+        include: { student: true },
+      });
+      await recordEvent(tx, {
+        aggregateType: 'AttendanceSession',
+        aggregateId: sessionId,
+        eventType: EventType.AttendanceRecorded,
+        payload: {
+          recordId: record.id,
+          sessionId,
+          courseId: session.courseId,
+          studentId: record.studentId,
+          status: record.status,
+          method: record.method,
+          capturedAt: record.capturedAt.toISOString(),
+        },
+      });
+      return record;
     });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2003') {

@@ -51,6 +51,12 @@ enum AttendanceMethod {
   MANUAL
 }
 
+enum OutboxStatus {
+  PENDING
+  PUBLISHED
+  FAILED
+}
+
 // ---- Identity & auth --------------------------------------------------------
 
 /// An authenticated principal. Professors own courses & sessions; admins manage
@@ -203,4 +209,29 @@ model AttendanceRecord {
   @@unique([sessionId, studentId])
   @@index([studentId])
   @@map("attendance_records")
+}
+
+// ---- Transactional outbox ---------------------------------------------------
+
+/// Outbox for the transactional-outbox pattern. Business writes and the events
+/// they emit are committed in one DB transaction by inserting a row here; a
+/// background relay then publishes PENDING rows to RabbitMQ and marks them
+/// PUBLISHED, guaranteeing at-least-once delivery even if the broker is down at
+/// commit time. `event_type` doubles as the AMQP routing key; `id` is used as
+/// the message id so consumers can deduplicate.
+model OutboxMessage {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  aggregateType String       @map("aggregate_type")
+  aggregateId   String       @map("aggregate_id")
+  eventType     String       @map("event_type")
+  payload       Json
+  status        OutboxStatus @default(PENDING)
+  attempts      Int          @default(0)
+  availableAt   DateTime     @default(now()) @map("available_at") @db.Timestamptz(6)
+  publishedAt   DateTime?    @map("published_at") @db.Timestamptz(6)
+  lastError     String?      @map("last_error")
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([status, availableAt])
+  @@map("outbox_messages")
 }

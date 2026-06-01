@@ -207,6 +207,39 @@ serving. Face enrollment and recognition write-paths arrive in Phases 3–4.
 
 ---
 
+## Messaging & events (transactional outbox)
+
+Events are published to RabbitMQ via the **transactional-outbox** pattern, so a
+business write and its event are committed atomically and never lost — even if
+the broker is down at commit time.
+
+```
+write + outbox row   ┌──────────────┐   poll + publish (confirms)   ┌────────────┐
+  (one DB tx)  ─────► │ outbox_messages│ ───────────────────────────► │  RabbitMQ  │
+                      └──────────────┘   mark PUBLISHED               │ facevec.   │
+   relay claims rows with FOR UPDATE SKIP LOCKED                       │  events    │
+   (multi-replica safe); retries with backoff                         └────────────┘
+```
+
+- **Write side:** services call `recordEvent(tx, …)` inside their
+  `prisma.$transaction`, inserting into `outbox_messages` (`event_type` = AMQP
+  routing key, row `id` = message id for consumer dedup).
+- **Relay:** a background poller (`OutboxRelay`) claims PENDING rows with
+  `FOR UPDATE SKIP LOCKED`, publishes each with **publisher confirms**, and marks
+  them PUBLISHED; failures stay PENDING with exponential backoff up to a cap.
+- **Topology:** a durable topic exchange `facevec.events` fans out by routing
+  key to durable queues — `facevec.notifications` (`attendance.#`, `course.#`)
+  and `facevec.face_tasks` (`face.#`, consumed by the AI service in Phase 4).
+- **Resilience:** if the broker is unreachable the gateway still serves writes;
+  events accumulate in the outbox and drain on reconnect. `/ready` reports broker
+  status but only gates on Postgres.
+
+Current producers: `attendance.recorded`, `course.student_enrolled`. The
+`face.*` task events are produced once the enrollment/recognition endpoints land
+(Phases 3→4).
+
+---
+
 ## Delivery roadmap
 
 This project is delivered in strict, reviewable phases.
@@ -216,7 +249,7 @@ This project is delivered in strict, reviewable phases.
 | **0** | **Monorepo skeleton, Dockerfiles, compose, env templates, README** ✅ |
 | **1** | **Postgres schema (Prisma + raw SQL pgvector/HNSW), domain entities** ✅ |
 | **2** | **Express gateway — routing, Zod validation, auth/RBAC, middleware stack** ✅ |
-| 3     | RabbitMQ producer/consumer + Transactional Outbox                     |
+| **3** | **RabbitMQ topology + Transactional Outbox relay (publisher confirms)** ✅ |
 | 4     | FastAPI inference — InsightFace pipeline, embedding endpoint          |
 | 5     | Redis — idempotency keys, sessions, WebSocket connection map          |
 | 6     | Circuit breaker (opossum) + fallback queue strategy                   |
