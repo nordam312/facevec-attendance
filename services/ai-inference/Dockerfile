@@ -26,8 +26,10 @@ RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 COPY requirements.txt ./
-# numpy + Cython first so InsightFace's Cython extension builds (no isolation).
-RUN pip install --upgrade pip \
+# Python 3.12 venvs no longer bootstrap setuptools, and `--no-build-isolation`
+# uses the venv's build backend — so install setuptools/wheel (plus numpy +
+# Cython for InsightFace's Cython extension) before building from sdist.
+RUN pip install --upgrade pip setuptools wheel \
  && pip install numpy==1.26.4 Cython \
  && pip install --no-build-isolation -r requirements.txt
 
