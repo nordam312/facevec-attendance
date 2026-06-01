@@ -164,6 +164,49 @@ Phase 2 maps persisted rows onto these entities.
 
 ---
 
+## API (gateway)
+
+The gateway is an **Express 5 + TypeScript** app under `/api/v1`. Every request
+gets a propagated `x-request-id`; responses are JSON, and errors share one shape:
+`{ "error": { "code", "message", "details?" }, "requestId" }`.
+
+**Middleware stack:** request logging (pino) → `helmet` → CORS allow-list →
+JSON/cookie parsing → rate limiting → Zod validation → JWT auth → RBAC.
+
+**Auth.** Short-lived access JWT (HS256) in the `Authorization: Bearer` header;
+long-lived **opaque refresh token** in an httpOnly cookie, stored only as a
+peppered HMAC and **rotated on every refresh** (reuse of a rotated token revokes
+the whole token family). Passwords are hashed with **Argon2id**.
+
+**RBAC.** Roles `ADMIN` / `PROFESSOR` / `STUDENT` map to capabilities in
+`src/domain/role.ts`; routes are gated by capability and resource ownership is
+enforced per-row (a professor only sees their own courses/sessions).
+
+| Method & path | Auth | Notes |
+| --- | --- | --- |
+| `POST /auth/register` | public | self-service, always creates a STUDENT |
+| `POST /auth/login` · `POST /auth/refresh` · `POST /auth/logout` | public / cookie | refresh rotates the token |
+| `GET /auth/me` | bearer | current principal |
+| `… /users` (CRUD) | ADMIN | user management |
+| `… /students` (CRUD) | PROFESSOR·ADMIN | roster |
+| `… /courses` (CRUD) + `…/courses/:id/enrollments` | PROFESSOR·ADMIN | own courses; enroll/unenroll |
+| `POST /courses/:id/sessions` · `… /sessions/:id` · `…/close` | PROFESSOR·ADMIN | attendance windows |
+| `POST /sessions/:id/attendance` | PROFESSOR·ADMIN | manual marking (idempotent) |
+| `GET /health` · `GET /ready` | public | `/ready` verifies Postgres |
+
+```bash
+cd services/gateway
+cp .env.example .env            # set DATABASE_URL + JWT secrets
+npm install && npm run db:migrate
+npm run db:seed                 # bootstrap ADMIN (admin@facevec.local / ChangeMe123!)
+npm run dev                     # tsx watch on :8080
+```
+
+In Docker the gateway applies pending migrations on start (entrypoint) before
+serving. Face enrollment and recognition write-paths arrive in Phases 3–4.
+
+---
+
 ## Delivery roadmap
 
 This project is delivered in strict, reviewable phases.
@@ -172,7 +215,7 @@ This project is delivered in strict, reviewable phases.
 | ----- | --------------------------------------------------------------------- |
 | **0** | **Monorepo skeleton, Dockerfiles, compose, env templates, README** ✅ |
 | **1** | **Postgres schema (Prisma + raw SQL pgvector/HNSW), domain entities** ✅ |
-| 2     | Express gateway — routing, Zod validation, middleware stack           |
+| **2** | **Express gateway — routing, Zod validation, auth/RBAC, middleware stack** ✅ |
 | 3     | RabbitMQ producer/consumer + Transactional Outbox                     |
 | 4     | FastAPI inference — InsightFace pipeline, embedding endpoint          |
 | 5     | Redis — idempotency keys, sessions, WebSocket connection map          |

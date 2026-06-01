@@ -123,6 +123,7 @@ services:
       JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-900}
       JWT_REFRESH_TTL: ${JWT_REFRESH_TTL:-1209600}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      FACE_MATCH_THRESHOLD: ${FACE_MATCH_THRESHOLD:-0.75}
     ports:
       - "${GATEWAY_PORT:-8080}:8080"
     depends_on:
