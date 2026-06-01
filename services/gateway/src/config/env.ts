@@ -36,6 +36,11 @@ const envSchema = z.object({
 
   // Identification acceptance threshold (consumed from Phase 4 onward).
   FACE_MATCH_THRESHOLD: z.coerce.number().min(0).max(1).default(0.75),
+
+  // Transactional-outbox relay tuning.
+  OUTBOX_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(1000),
+  OUTBOX_BATCH_SIZE: z.coerce.number().int().positive().max(500).default(50),
+  OUTBOX_MAX_ATTEMPTS: z.coerce.number().int().positive().default(10),
 });
 
 export type AppConfig = Readonly<z.infer<typeof envSchema>> & {

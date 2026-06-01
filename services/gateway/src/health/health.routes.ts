@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { isDatabaseReachable } from '../db/prisma.js';
 import { asyncHandler } from '../http/async-handler.js';
+import { rabbit } from '../messaging/rabbitmq.js';
 
 const SERVICE = 'gateway';
 
@@ -15,11 +16,14 @@ healthRouter.get(
   '/ready',
   asyncHandler(async (_req, res) => {
     const database = await isDatabaseReachable();
+    const broker = rabbit.isReady();
+    // Readiness gates on the database only: the broker may be reconnecting while
+    // events safely accumulate in the outbox, so it is reported, not required.
     const ready = database;
     res.status(ready ? 200 : 503).json({
       status: ready ? 'ready' : 'not_ready',
       service: SERVICE,
-      checks: { database: database ? 'up' : 'down' },
+      checks: { database: database ? 'up' : 'down', broker: broker ? 'up' : 'down' },
     });
   }),
 );
