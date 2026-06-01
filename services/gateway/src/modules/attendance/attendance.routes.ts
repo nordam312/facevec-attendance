@@ -3,10 +3,12 @@ import { Capability } from '../../domain/index.js';
 import { authenticate } from '../../http/middleware/authenticate.js';
 import { requireCapability } from '../../http/middleware/authorize.js';
 import { validate } from '../../http/middleware/validate.js';
+import { imageUpload } from '../../http/middleware/upload.js';
 import { idParamSchema, paginationSchema } from '../../http/common.schemas.js';
 import {
   closeSessionHandler,
   getSessionHandler,
+  identifyHandler,
   listRecordsHandler,
   listSessionsHandler,
   markAttendanceHandler,
@@ -57,6 +59,14 @@ attendanceRouter.post(
   ...guard,
   validate({ params: idParamSchema, body: markAttendanceSchema }),
   markAttendanceHandler,
+);
+// Face recognition: extract → match within roster → record on success.
+attendanceRouter.post(
+  '/sessions/:id/identify',
+  ...guard,
+  validate({ params: idParamSchema }),
+  imageUpload.single('image'),
+  identifyHandler,
 );
 attendanceRouter.get(
   '/sessions/:id/attendance',

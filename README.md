@@ -240,6 +240,37 @@ Current producers: `attendance.recorded`, `course.student_enrolled`. The
 
 ---
 
+## Face recognition (AI inference)
+
+The **AI service** is stateless compute: it loads InsightFace `buffalo_l` at
+startup and exposes `POST /v1/embeddings` (image → 512-d L2-normalised
+embeddings + bounding boxes). It never touches the database — the **gateway**
+orchestrates persistence and the pgvector search, calling the AI over HTTP.
+
+```
+            multipart image
+ gateway  ───────────────────►  AI service        (stateless, model in-image)
+   │  ◄───────────────────────  512-d embedding
+   │
+   ├─ enroll:    INSERT INTO face_embeddings (… , embedding::vector)   (raw SQL)
+   └─ identify:  SELECT 1 - (embedding <=> $1::vector) AS similarity    (cosine)
+                 within the session's course roster; if > FACE_MATCH_THRESHOLD
+                 → record PRESENT (method FACE) + emit attendance.recorded
+```
+
+| Endpoint | Auth | Behaviour |
+| --- | --- | --- |
+| `POST /api/v1/students/:id/faces` | PROF·ADMIN | enroll a face (multipart `image`); SHA-256 de-dupes re-uploads |
+| `GET /api/v1/students/:id/faces` · `DELETE …/:embeddingId` | PROF·ADMIN | list / remove embeddings |
+| `POST /api/v1/sessions/:id/identify` | PROF·ADMIN | recognise a face; on a > threshold match records FACE attendance |
+
+The gateway maps AI faults to clean statuses (`503 ai_unavailable`,
+`502 ai_bad_response`, `422 no_face_detected`), which Phase 6 wraps in a circuit
+breaker with a fallback queue. The AI service is CPU-only (`onnxruntime`); the
+model pack is baked into the image so the container needs no runtime network.
+
+---
+
 ## Delivery roadmap
 
 This project is delivered in strict, reviewable phases.
@@ -250,7 +281,7 @@ This project is delivered in strict, reviewable phases.
 | **1** | **Postgres schema (Prisma + raw SQL pgvector/HNSW), domain entities** ✅ |
 | **2** | **Express gateway — routing, Zod validation, auth/RBAC, middleware stack** ✅ |
 | **3** | **RabbitMQ topology + Transactional Outbox relay (publisher confirms)** ✅ |
-| 4     | FastAPI inference — InsightFace pipeline, embedding endpoint          |
+| **4** | **FastAPI InsightFace embedding service + gateway enroll/identify (pgvector)** ✅ |
 | 5     | Redis — idempotency keys, sessions, WebSocket connection map          |
 | 6     | Circuit breaker (opossum) + fallback queue strategy                   |
 | 7     | Next.js dashboard — enrollment UI, real-time WebSocket feed           |

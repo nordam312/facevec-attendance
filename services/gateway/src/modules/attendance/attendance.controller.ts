@@ -1,10 +1,12 @@
 import { actorOf } from '../../http/context.js';
 import { asyncHandler } from '../../http/async-handler.js';
+import { requireImage } from '../../http/middleware/upload.js';
 import { paginatedResponse } from '../../http/pagination.js';
 import type { IdParam, Pagination } from '../../http/common.schemas.js';
 import {
   closeSession,
   getSession,
+  identifyAndRecord,
   listRecords,
   listSessions,
   markAttendance,
@@ -46,4 +48,21 @@ export const listRecordsHandler = asyncHandler(async (req, res) => {
   const { id } = req.valid?.params as IdParam;
   const page = await listRecords(id, req.valid?.query as Pagination, actorOf(req));
   res.json(paginatedResponse(page, serializeRecord));
+});
+
+export const identifyHandler = asyncHandler(async (req, res) => {
+  const { id } = req.valid?.params as IdParam;
+  const file = requireImage(req);
+  const result = await identifyAndRecord(
+    id,
+    { buffer: file.buffer, mimetype: file.mimetype, originalname: file.originalname },
+    actorOf(req),
+  );
+  res.status(result.matched ? 201 : 200).json({
+    matched: result.matched,
+    similarity: result.similarity,
+    threshold: result.threshold,
+    student: result.student,
+    record: result.record ? serializeRecord(result.record) : null,
+  });
 });

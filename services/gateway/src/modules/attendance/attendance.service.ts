@@ -5,17 +5,34 @@ import {
   type Student,
 } from '@prisma/client';
 import { prisma } from '../../db/prisma.js';
-import { AttendanceMethod, Role, SessionStatus } from '../../domain/index.js';
-import { ConflictError, ForbiddenError, NotFoundError } from '../../errors/index.js';
+import { config } from '../../config/env.js';
+import { AttendanceMethod, AttendanceStatus, Role, SessionStatus } from '../../domain/index.js';
+import { ConflictError, ForbiddenError, HttpError, NotFoundError } from '../../errors/index.js';
 import { toSkipTake } from '../../http/common.schemas.js';
 import type { Page } from '../../http/pagination.js';
 import type { AuthContext } from '../../http/types.js';
 import { EventType } from '../../messaging/events.js';
 import { recordEvent } from '../../messaging/outbox.js';
+import { extractEmbeddings } from '../ai/ai.client.js';
 import { getCourseForActor } from '../courses/courses.service.js';
+import { searchNearestInCourse } from '../faces/face.repository.js';
 import type { MarkAttendanceInput } from './attendance.schemas.js';
 
 type RecordWithStudent = AttendanceRecord & { student: Student };
+
+export interface UploadedImage {
+  buffer: Buffer;
+  mimetype: string;
+  originalname: string;
+}
+
+export interface IdentifyResult {
+  matched: boolean;
+  similarity: number | null;
+  threshold: number;
+  student: { id: string; fullName: string; studentNumber: string } | null;
+  record: RecordWithStudent | null;
+}
 
 /** Fetch a session and assert the actor owns its course (or is an admin). */
 async function getSessionForActor(id: string, actor: AuthContext): Promise<AttendanceSession> {
@@ -141,4 +158,76 @@ export async function listRecords(
     prisma.attendanceRecord.count({ where }),
   ]);
   return { items, total, page: query.page, pageSize: query.pageSize };
+}
+
+/**
+ * Identify a face against the session's course roster and, on an above-threshold
+ * match, record PRESENT (method FACE) — atomically emitting `attendance.recorded`
+ * via the outbox. Returns `matched: false` (no write) when nothing clears the
+ * threshold, so the caller can surface "unrecognised".
+ */
+export async function identifyAndRecord(
+  sessionId: string,
+  file: UploadedImage,
+  actor: AuthContext,
+): Promise<IdentifyResult> {
+  const session = await getSessionForActor(sessionId, actor);
+  if (session.status !== SessionStatus.OPEN) {
+    throw new ConflictError('Cannot identify for a closed session');
+  }
+
+  const extraction = await extractEmbeddings(file.buffer, file.originalname, file.mimetype);
+  if (!extraction.primary) {
+    throw new HttpError(422, 'no_face_detected', 'No face detected in the image');
+  }
+
+  const threshold = config.FACE_MATCH_THRESHOLD;
+  const [best] = await searchNearestInCourse(session.courseId, extraction.primary.embedding, 1);
+
+  if (!best || best.similarity < threshold) {
+    return { matched: false, similarity: best?.similarity ?? null, threshold, student: null, record: null };
+  }
+
+  const record = await prisma.$transaction(async (tx) => {
+    const upserted = await tx.attendanceRecord.upsert({
+      where: { sessionId_studentId: { sessionId, studentId: best.studentId } },
+      create: {
+        sessionId,
+        studentId: best.studentId,
+        status: AttendanceStatus.PRESENT,
+        method: AttendanceMethod.FACE,
+        similarity: best.similarity,
+      },
+      update: {
+        status: AttendanceStatus.PRESENT,
+        method: AttendanceMethod.FACE,
+        similarity: best.similarity,
+      },
+      include: { student: true },
+    });
+    await recordEvent(tx, {
+      aggregateType: 'AttendanceSession',
+      aggregateId: sessionId,
+      eventType: EventType.AttendanceRecorded,
+      payload: {
+        recordId: upserted.id,
+        sessionId,
+        courseId: session.courseId,
+        studentId: upserted.studentId,
+        status: upserted.status,
+        method: upserted.method,
+        similarity: upserted.similarity,
+        capturedAt: upserted.capturedAt.toISOString(),
+      },
+    });
+    return upserted;
+  });
+
+  return {
+    matched: true,
+    similarity: best.similarity,
+    threshold,
+    student: { id: best.studentId, fullName: best.fullName, studentNumber: best.studentNumber },
+    record,
+  };
 }

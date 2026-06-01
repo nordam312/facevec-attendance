@@ -25,6 +25,9 @@ const envSchema = z.object({
   REDIS_URL: z.string().url().optional(),
   RABBITMQ_URL: z.string().url().optional(),
   AI_INFERENCE_URL: z.string().url().optional(),
+  AI_INFERENCE_TIMEOUT_MS: z.coerce.number().int().positive().default(8000),
+  // Reject image uploads larger than this (bytes) at the gateway edge.
+  MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(10 * 1024 * 1024),
 
   // Auth. Secrets must be long enough to resist brute force; TTLs are seconds.
   JWT_ACCESS_SECRET: z.string().min(16, 'JWT_ACCESS_SECRET must be at least 16 characters'),
