@@ -4,6 +4,7 @@ import { config } from './config/env.js';
 import { prisma } from './db/prisma.js';
 import { rabbit } from './messaging/rabbitmq.js';
 import { outboxRelay } from './messaging/outbox-relay.js';
+import { closeRedis, initRedis } from './redis/redis.js';
 import { logger } from './observability/logger.js';
 
 /**
@@ -19,8 +20,9 @@ const server = app.listen(config.PORT, () => {
   logger.info({ port: config.PORT, env: config.NODE_ENV }, 'gateway listening');
 });
 
-// Connect to the broker (self-retrying) and start the relay. Neither blocks
-// startup: if the broker is down, writes still succeed and buffer in the outbox.
+// Connect to Redis (idempotency, shared rate-limit, token revocation) and the
+// broker; start the relay. None block startup — all degrade gracefully.
+initRedis();
 void rabbit.connect();
 outboxRelay.start();
 
@@ -38,7 +40,7 @@ function shutdown(signal: NodeJS.Signals): void {
   outboxRelay.stop();
 
   server.close(() => {
-    Promise.allSettled([rabbit.close(), prisma.$disconnect()])
+    Promise.allSettled([rabbit.close(), closeRedis(), prisma.$disconnect()])
       .catch((err: unknown) => logger.error({ err }, 'error during shutdown'))
       .finally(() => {
         clearTimeout(forced);

@@ -1,4 +1,4 @@
-import { createHmac, randomBytes } from 'node:crypto';
+import { createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { SignJWT, jwtVerify } from 'jose';
 import { config } from '../../config/env.js';
 import { isRole, type Role } from '../../domain/index.js';
@@ -17,15 +17,28 @@ const ISSUER = 'facevec';
 const AUDIENCE = 'facevec-api';
 const accessSecret = new TextEncoder().encode(config.JWT_ACCESS_SECRET);
 
-export interface AccessTokenClaims {
+export interface AccessTokenInput {
   userId: string;
   role: Role;
 }
 
-export async function signAccessToken(claims: AccessTokenClaims): Promise<string> {
+/** Verified access-token claims, including identifiers used for revocation. */
+export interface AccessTokenClaims {
+  userId: string;
+  role: Role;
+  /** Unique token id — denylisted on logout. */
+  jti: string;
+  /** Issued-at (epoch seconds) — compared against the per-user revocation cutoff. */
+  issuedAt: number;
+  /** Expiry (epoch seconds) — bounds the denylist TTL. */
+  expiresAt: number;
+}
+
+export async function signAccessToken(claims: AccessTokenInput): Promise<string> {
   return new SignJWT({ role: claims.role })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(claims.userId)
+    .setJti(randomUUID())
     .setIssuedAt()
     .setIssuer(ISSUER)
     .setAudience(AUDIENCE)
@@ -41,10 +54,16 @@ export async function verifyAccessToken(token: string): Promise<AccessTokenClaim
     throw new UnauthorizedError('Invalid or expired access token');
   }
   const role = payload.role;
-  if (typeof payload.sub !== 'string' || !isRole(role)) {
+  if (
+    typeof payload.sub !== 'string' ||
+    !isRole(role) ||
+    typeof payload.jti !== 'string' ||
+    typeof payload.iat !== 'number' ||
+    typeof payload.exp !== 'number'
+  ) {
     throw new UnauthorizedError('Malformed access token');
   }
-  return { userId: payload.sub, role };
+  return { userId: payload.sub, role, jti: payload.jti, issuedAt: payload.iat, expiresAt: payload.exp };
 }
 
 /** A fresh opaque refresh token (the raw value handed to the client once). */

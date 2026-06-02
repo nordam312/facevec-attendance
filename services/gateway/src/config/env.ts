@@ -44,6 +44,9 @@ const envSchema = z.object({
   OUTBOX_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(1000),
   OUTBOX_BATCH_SIZE: z.coerce.number().int().positive().max(500).default(50),
   OUTBOX_MAX_ATTEMPTS: z.coerce.number().int().positive().default(10),
+
+  // How long an Idempotency-Key (and its cached response) is retained in Redis.
+  IDEMPOTENCY_TTL_SECONDS: z.coerce.number().int().positive().default(86_400),
 });
 
 export type AppConfig = Readonly<z.infer<typeof envSchema>> & {
