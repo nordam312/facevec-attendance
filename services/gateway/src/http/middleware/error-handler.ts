@@ -1,5 +1,6 @@
 import type { ErrorRequestHandler } from 'express';
 import { Prisma } from '@prisma/client';
+import { MulterError } from 'multer';
 import { config } from '../../config/env.js';
 import {
   BadRequestError,
@@ -7,6 +8,7 @@ import {
   HttpError,
   NotFoundError,
 } from '../../errors/index.js';
+import { AiBadResponseError, AiUnavailableError } from '../../modules/ai/ai.client.js';
 
 /** Translate known Prisma engine errors into our HTTP error vocabulary. */
 function mapPrismaError(err: Prisma.PrismaClientKnownRequestError): HttpError {
@@ -40,6 +42,15 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
     httpError = err;
   } else if (err instanceof Prisma.PrismaClientKnownRequestError) {
     httpError = mapPrismaError(err);
+  } else if (err instanceof MulterError) {
+    httpError =
+      err.code === 'LIMIT_FILE_SIZE'
+        ? new HttpError(413, 'file_too_large', 'Uploaded image exceeds the size limit')
+        : new BadRequestError(`Upload error: ${err.message}`);
+  } else if (err instanceof AiUnavailableError) {
+    httpError = new HttpError(503, 'ai_unavailable', err.message);
+  } else if (err instanceof AiBadResponseError) {
+    httpError = new HttpError(502, 'ai_bad_response', err.message);
   }
 
   if (httpError) {

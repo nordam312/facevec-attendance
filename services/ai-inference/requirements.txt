@@ -1,10 +1,16 @@
-# Phase 0 runtime dependencies for the AI inference service.
-# The heavy ML stack (insightface, onnxruntime, opencv-python-headless, numpy,
-# pgvector, aio-pika) is added in Phase 4 alongside the embedding pipeline; the
-# Dockerfile already provisions the system libraries those packages require.
+# Runtime dependencies for the AI inference service.
+# The ML stack is CPU-only (onnxruntime). numpy is pinned < 2 for InsightFace
+# 0.7.3 compatibility. System libs (libgl1, libglib2.0-0) are provisioned by the
+# Dockerfile; the buffalo_l model pack is baked into the image at build time.
 
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
 pydantic==2.10.4
 pydantic-settings==2.7.0
 structlog==24.4.0
+
+# --- Face analysis pipeline ---
+numpy==1.26.4
+opencv-python-headless==4.10.0.84
+onnxruntime==1.19.2
+insightface==0.7.3

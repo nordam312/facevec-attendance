@@ -3,6 +3,7 @@ import { Capability } from '../../domain/index.js';
 import { authenticate } from '../../http/middleware/authenticate.js';
 import { requireCapability } from '../../http/middleware/authorize.js';
 import { validate } from '../../http/middleware/validate.js';
+import { imageUpload } from '../../http/middleware/upload.js';
 import { idParamSchema } from '../../http/common.schemas.js';
 import {
   createStudentHandler,
@@ -16,6 +17,12 @@ import {
   listStudentsQuerySchema,
   updateStudentSchema,
 } from './students.schemas.js';
+import {
+  deleteFaceHandler,
+  enrollFaceHandler,
+  listFacesHandler,
+} from '../faces/faces.controller.js';
+import { faceParamsSchema } from '../faces/faces.schemas.js';
 
 export const studentsRouter: Router = Router();
 
@@ -31,3 +38,17 @@ studentsRouter.patch(
   updateStudentHandler,
 );
 studentsRouter.delete('/:id', validate({ params: idParamSchema }), deleteStudentHandler);
+
+// Face enrollment sub-resource (512-d embeddings via the AI service).
+studentsRouter.post(
+  '/:id/faces',
+  validate({ params: idParamSchema }),
+  imageUpload.single('image'),
+  enrollFaceHandler,
+);
+studentsRouter.get('/:id/faces', validate({ params: idParamSchema }), listFacesHandler);
+studentsRouter.delete(
+  '/:id/faces/:embeddingId',
+  validate({ params: faceParamsSchema }),
+  deleteFaceHandler,
+);
