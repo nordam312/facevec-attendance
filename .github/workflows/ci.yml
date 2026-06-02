@@ -36,6 +36,42 @@ jobs:
       - run: npm run typecheck
 
   # ---------------------------------------------------------------------------
+  # Gateway tests — unit (domain) + integration (HTTP API against Postgres).
+  # ---------------------------------------------------------------------------
+  test-gateway:
+    name: Test · Gateway (vitest + Postgres)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/gateway
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: facevec
+          POSTGRES_PASSWORD: facevec
+          POSTGRES_DB: facevec
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U facevec -d facevec"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      DATABASE_URL: postgresql://facevec:facevec@localhost:5432/facevec
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node (version from .nvmrc)
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: services/gateway/package-lock.json
+      - run: npm ci
+      - name: Apply migrations
+        run: npm run db:migrate
+      - run: npm test
+
+  # ---------------------------------------------------------------------------
   # Web — ESLint (next lint) + TypeScript type-check.
   # ---------------------------------------------------------------------------
   lint-web:
@@ -60,7 +96,7 @@ jobs:
   # AI inference — flake8 + mypy.
   # ---------------------------------------------------------------------------
   lint-ai:
-    name: Lint · AI (flake8 + mypy)
+    name: Lint · AI (flake8 + mypy + pytest)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -76,6 +112,7 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - run: flake8 app
       - run: mypy app
+      - run: pytest
 
   # ---------------------------------------------------------------------------
   # Docker — verify every service image builds (matrix, no push). Layer cache is

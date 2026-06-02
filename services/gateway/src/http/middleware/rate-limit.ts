@@ -48,7 +48,7 @@ function makeLimiter(prefix: string, windowMs: number, limit: number): RequestHa
 }
 
 /** Generous default budget applied to the whole API surface. */
-export const globalRateLimit = makeLimiter('global', 60_000, 120);
+export const globalRateLimit = makeLimiter('global', 60_000, config.RATE_LIMIT_GLOBAL);
 
 /** Tight budget for credential endpoints to blunt brute-force / enumeration. */
-export const authRateLimit = makeLimiter('auth', 60_000, 10);
+export const authRateLimit = makeLimiter('auth', 60_000, config.RATE_LIMIT_AUTH);

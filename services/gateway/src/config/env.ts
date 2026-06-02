@@ -48,6 +48,10 @@ const envSchema = z.object({
   // How long an Idempotency-Key (and its cached response) is retained in Redis.
   IDEMPOTENCY_TTL_SECONDS: z.coerce.number().int().positive().default(86_400),
 
+  // Rate-limit budgets per minute (per IP). Tunable so tests/load runs can relax them.
+  RATE_LIMIT_GLOBAL: z.coerce.number().int().positive().default(120),
+  RATE_LIMIT_AUTH: z.coerce.number().int().positive().default(10),
+
   // Circuit breaker around the AI inference call (opossum).
   AI_BREAKER_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),
   AI_BREAKER_ERROR_THRESHOLD: z.coerce.number().int().min(1).max(100).default(50),
