@@ -364,6 +364,30 @@ Face capture supports **webcam** (`getUserMedia` → canvas → JPEG) with a
 
 ---
 
+## Testing & CI
+
+| Suite | Tooling | What it covers |
+| --- | --- | --- |
+| Gateway unit | vitest | domain rules — cosine similarity, RBAC capability map, embedding/UUID validation, refresh-token reuse, session state |
+| Gateway integration | vitest + supertest + Postgres | auth (login/refresh-rotation/reuse), `/me`, RBAC, course ownership isolation, CRUD, validation (422), 404, roster + manual attendance (incl. the transactional outbox write) |
+| AI unit | pytest | `decode_image`, `FaceEngine.extract` mapping/sorting (mocked model), `/health`, `/ready`, `/v1/embeddings` (415/400/503/200) |
+
+```bash
+cd services/gateway && npm test       # unit + integration (needs Postgres)
+cd services/ai-inference && pytest     # model is faked — no weights needed
+```
+
+Integration tests run against Postgres only — Redis/RabbitMQ are unset so the app
+uses the in-memory limiter and the outbox simply accumulates rows (their live
+behaviour is covered by the Phase 5/6 checks). They **truncate** their target
+database, so point `DATABASE_URL` at a disposable DB.
+
+**CI** (`.github/workflows/ci.yml`) runs on every PR: lint + typecheck per
+service, **`test-gateway`** (spins up a `pgvector` service, applies migrations,
+runs vitest), **`lint-ai`** (flake8 + mypy + pytest), and a Docker build matrix.
+
+---
+
 ## Delivery roadmap
 
 This project is delivered in strict, reviewable phases.
@@ -378,7 +402,7 @@ This project is delivered in strict, reviewable phases.
 | **5** | **Redis — idempotency locks, distributed rate limiting, token/session revocation** ✅ |
 | **6** | **Circuit breaker (opossum) + async fallback queue with retry/dead-letter** ✅ |
 | **7** | **WebSocket live feed (Redis pub/sub) + Next.js 15 dashboard (enrollment, scan)** ✅ |
-| 8     | GitHub Actions CI/CD + test scaffolding                               |
+| **8** | **Test suites (vitest unit/integration, pytest) + CI test jobs** ✅ |
 | 9     | Observability — OpenTelemetry, structured logging, health checks      |
 
 > **Phase 0 note:** the gateway and AI service ship minimal but *real* bootstrap
