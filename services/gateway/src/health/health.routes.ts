@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { isDatabaseReachable } from '../db/prisma.js';
 import { asyncHandler } from '../http/async-handler.js';
 import { rabbit } from '../messaging/rabbitmq.js';
+import { aiBreakerState } from '../modules/ai/ai.breaker.js';
 import { isRedisReady } from '../redis/redis.js';
 
 const SERVICE = 'gateway';
@@ -30,6 +31,7 @@ healthRouter.get(
         database: database ? 'up' : 'down',
         broker: broker ? 'up' : 'down',
         cache: cache ? 'up' : 'down',
+        aiBreaker: aiBreakerState(),
       },
     });
   }),

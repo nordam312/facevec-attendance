@@ -296,6 +296,39 @@ on top.
 
 ---
 
+## Resilience (circuit breaker + fallback queue)
+
+The gateway→AI call is wrapped in an **opossum** circuit breaker. When the AI
+service is failing the breaker trips **OPEN** and calls fail fast (no piling up on
+timeouts); after a cooldown it goes **HALF-OPEN** and lets one trial through.
+
+The two AI-backed operations degrade differently by nature:
+
+- **Enrollment** (not latency-sensitive) → **async fallback**. On any AI failure
+  (or open breaker) the gateway enqueues the image as a `face.enrollment.requested`
+  task and returns **202 Accepted** with a `jobId`. A background **consumer**
+  drains `facevec.face_tasks` (extract via the breaker → persist). Failures are
+  parked in a **TTL retry queue** (delayed redelivery, bounded attempts), and
+  exhausted tasks land in a **dead-letter queue**.
+- **Identification** (real-time) → **no fallback**: a stale async result is
+  useless for live attendance, so it surfaces **503** immediately.
+
+```
+enroll, AI up      → 201 enrolled (sync)
+enroll, AI down    → 202 queued ──► facevec.face_tasks ──► consumer drains on recovery
+                                         │ fail
+                                         ▼
+                            face_tasks.retry (TTL) ──► back to face_tasks
+                                         │ attempts exhausted
+                                         ▼
+                                 face_tasks.dead
+identify, AI down  → 503
+```
+
+`/ready` reports the breaker state (`closed` / `open` / `half-open`).
+
+---
+
 ## Delivery roadmap
 
 This project is delivered in strict, reviewable phases.
@@ -308,7 +341,7 @@ This project is delivered in strict, reviewable phases.
 | **3** | **RabbitMQ topology + Transactional Outbox relay (publisher confirms)** ✅ |
 | **4** | **FastAPI InsightFace embedding service + gateway enroll/identify (pgvector)** ✅ |
 | **5** | **Redis — idempotency locks, distributed rate limiting, token/session revocation** ✅ |
-| 6     | Circuit breaker (opossum) + fallback queue strategy                   |
+| **6** | **Circuit breaker (opossum) + async fallback queue with retry/dead-letter** ✅ |
 | 7     | Next.js dashboard — enrollment UI, real-time WebSocket feed           |
 | 8     | GitHub Actions CI/CD + test scaffolding                               |
 | 9     | Observability — OpenTelemetry, structured logging, health checks      |

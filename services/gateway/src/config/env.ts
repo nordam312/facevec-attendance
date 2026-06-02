@@ -47,6 +47,17 @@ const envSchema = z.object({
 
   // How long an Idempotency-Key (and its cached response) is retained in Redis.
   IDEMPOTENCY_TTL_SECONDS: z.coerce.number().int().positive().default(86_400),
+
+  // Circuit breaker around the AI inference call (opossum).
+  AI_BREAKER_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),
+  AI_BREAKER_ERROR_THRESHOLD: z.coerce.number().int().min(1).max(100).default(50),
+  AI_BREAKER_RESET_MS: z.coerce.number().int().positive().default(15_000),
+  AI_BREAKER_VOLUME_THRESHOLD: z.coerce.number().int().positive().default(3),
+
+  // Async fallback queue (face_tasks) retry policy.
+  FACE_TASK_PREFETCH: z.coerce.number().int().positive().default(4),
+  FACE_TASK_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
+  FACE_TASK_RETRY_DELAY_MS: z.coerce.number().int().positive().default(10_000),
 });
 
 export type AppConfig = Readonly<z.infer<typeof envSchema>> & {

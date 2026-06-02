@@ -12,7 +12,12 @@ export const enrollFaceHandler = asyncHandler(async (req, res) => {
     mimetype: file.mimetype,
     originalname: file.originalname,
   });
-  res.status(201).json({ embedding: result.embedding, faceCount: result.faceCount });
+  if (result.status === 'queued') {
+    // AI unavailable — accepted for async processing via the fallback queue.
+    res.status(202).json({ status: 'queued', jobId: result.jobId });
+    return;
+  }
+  res.status(201).json({ status: 'enrolled', embedding: result.embedding, faceCount: result.faceCount });
 });
 
 export const listFacesHandler = asyncHandler(async (req, res) => {

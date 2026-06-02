@@ -4,6 +4,7 @@ import { config } from './config/env.js';
 import { prisma } from './db/prisma.js';
 import { rabbit } from './messaging/rabbitmq.js';
 import { outboxRelay } from './messaging/outbox-relay.js';
+import { faceTaskConsumer } from './messaging/face-task-consumer.js';
 import { closeRedis, initRedis } from './redis/redis.js';
 import { logger } from './observability/logger.js';
 
@@ -21,8 +22,10 @@ const server = app.listen(config.PORT, () => {
 });
 
 // Connect to Redis (idempotency, shared rate-limit, token revocation) and the
-// broker; start the relay. None block startup — all degrade gracefully.
+// broker; start the relay and the face-task fallback consumer. None block
+// startup — all degrade gracefully.
 initRedis();
+faceTaskConsumer.start();
 void rabbit.connect();
 outboxRelay.start();
 
