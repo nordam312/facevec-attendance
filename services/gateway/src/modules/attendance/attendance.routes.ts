@@ -4,6 +4,7 @@ import { authenticate } from '../../http/middleware/authenticate.js';
 import { requireCapability } from '../../http/middleware/authorize.js';
 import { validate } from '../../http/middleware/validate.js';
 import { imageUpload } from '../../http/middleware/upload.js';
+import { idempotency } from '../../http/middleware/idempotency.js';
 import { idParamSchema, paginationSchema } from '../../http/common.schemas.js';
 import {
   closeSessionHandler,
@@ -58,6 +59,7 @@ attendanceRouter.post(
   '/sessions/:id/attendance',
   ...guard,
   validate({ params: idParamSchema, body: markAttendanceSchema }),
+  idempotency,
   markAttendanceHandler,
 );
 // Face recognition: extract → match within roster → record on success.
@@ -65,6 +67,7 @@ attendanceRouter.post(
   '/sessions/:id/identify',
   ...guard,
   validate({ params: idParamSchema }),
+  idempotency,
   imageUpload.single('image'),
   identifyHandler,
 );

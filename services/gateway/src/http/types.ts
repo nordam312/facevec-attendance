@@ -6,6 +6,10 @@ import type { UserId } from '../domain/index.js';
 export interface AuthContext {
   userId: UserId;
   role: Role;
+  /** Access-token id, for per-token revocation on logout. */
+  jti: string;
+  /** Access-token expiry (epoch seconds). */
+  expiresAt: number;
 }
 
 /** Validated request parts produced by the `validate` middleware. */

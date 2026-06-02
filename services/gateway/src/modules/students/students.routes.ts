@@ -4,6 +4,7 @@ import { authenticate } from '../../http/middleware/authenticate.js';
 import { requireCapability } from '../../http/middleware/authorize.js';
 import { validate } from '../../http/middleware/validate.js';
 import { imageUpload } from '../../http/middleware/upload.js';
+import { idempotency } from '../../http/middleware/idempotency.js';
 import { idParamSchema } from '../../http/common.schemas.js';
 import {
   createStudentHandler,
@@ -43,6 +44,7 @@ studentsRouter.delete('/:id', validate({ params: idParamSchema }), deleteStudent
 studentsRouter.post(
   '/:id/faces',
   validate({ params: idParamSchema }),
+  idempotency,
   imageUpload.single('image'),
   enrollFaceHandler,
 );

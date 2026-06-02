@@ -271,6 +271,31 @@ model pack is baked into the image so the container needs no runtime network.
 
 ---
 
+## Redis (idempotency · rate limiting · session revocation)
+
+Redis backs three cross-cutting concerns in the gateway, each of which **degrades
+gracefully** if Redis is unavailable (the gateway keeps serving, with that
+guarantee relaxed):
+
+- **Idempotency** — unsafe operations (`enroll`, `mark`, `identify`) accept an
+  `Idempotency-Key` header. The first request takes a Redis `SET NX` lock and its
+  successful response is cached; retries replay it (`Idempotency-Replayed: true`),
+  and a replay while the original is in flight gets `409`. This is the
+  "distributed lock prevents double-scan mutations" guardrail.
+- **Distributed rate limiting** — `express-rate-limit` uses a Redis store, so a
+  limit is shared across all gateway replicas (in-memory fallback when `REDIS_URL`
+  is unset).
+- **Access-token revocation** — access JWTs are stateless, so Redis makes
+  revocation immediate: `POST /auth/logout` denylists the token's `jti`;
+  `POST /auth/logout-all` records a per-user cutoff that invalidates every access
+  token issued so far. `authenticate` consults both on each request.
+
+Refresh tokens remain the durable, audited source of truth in Postgres (rotation
++ reuse detection from Phase 2); Redis adds the fast, immediate-revocation layer
+on top.
+
+---
+
 ## Delivery roadmap
 
 This project is delivered in strict, reviewable phases.
@@ -282,7 +307,7 @@ This project is delivered in strict, reviewable phases.
 | **2** | **Express gateway — routing, Zod validation, auth/RBAC, middleware stack** ✅ |
 | **3** | **RabbitMQ topology + Transactional Outbox relay (publisher confirms)** ✅ |
 | **4** | **FastAPI InsightFace embedding service + gateway enroll/identify (pgvector)** ✅ |
-| 5     | Redis — idempotency keys, sessions, WebSocket connection map          |
+| **5** | **Redis — idempotency locks, distributed rate limiting, token/session revocation** ✅ |
 | 6     | Circuit breaker (opossum) + fallback queue strategy                   |
 | 7     | Next.js dashboard — enrollment UI, real-time WebSocket feed           |
 | 8     | GitHub Actions CI/CD + test scaffolding                               |

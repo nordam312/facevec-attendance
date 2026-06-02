@@ -7,6 +7,7 @@ import { serializeUser } from '../users/user.serializer.js';
 import {
   login,
   logout,
+  logoutAll,
   refresh,
   register,
   type AuthResult,
@@ -70,9 +71,19 @@ export const refreshHandler = asyncHandler(async (req, res) => {
 
 export const logoutHandler = asyncHandler(async (req, res) => {
   const token = req.cookies?.[REFRESH_COOKIE];
-  if (typeof token === 'string' && token) {
-    await logout(token);
+  await logout({
+    refreshToken: typeof token === 'string' && token ? token : null,
+    ...(req.auth ? { access: { jti: req.auth.jti, expiresAt: req.auth.expiresAt } } : {}),
+  });
+  clearRefreshCookie(res);
+  res.status(204).end();
+});
+
+export const logoutAllHandler = asyncHandler(async (req, res) => {
+  if (!req.auth) {
+    throw new UnauthorizedError();
   }
+  await logoutAll(req.auth.userId, req.auth.jti, req.auth.expiresAt);
   clearRefreshCookie(res);
   res.status(204).end();
 });

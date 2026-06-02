@@ -3,11 +3,16 @@ import { prisma } from '../../db/prisma.js';
 import { Role } from '../../domain/index.js';
 import { ConflictError, ForbiddenError, UnauthorizedError } from '../../errors/index.js';
 import { logger } from '../../observability/logger.js';
+import {
+  revokeAccessToken,
+  revokeUserTokensBefore,
+} from '../../redis/token-revocation.js';
 import { hashPassword, verifyPassword } from './password.service.js';
 import {
   generateRefreshToken,
   hashRefreshToken,
   refreshTokenExpiry,
+  refreshTtlSeconds,
   signAccessToken,
 } from './token.service.js';
 import type { LoginInput, RegisterInput } from './auth.schemas.js';
@@ -133,10 +138,41 @@ export async function refresh(rawToken: string, ctx: RequestContext): Promise<Au
   return { user: existing.user, accessToken, refreshToken: newRaw };
 }
 
-/** Revoke a specific refresh token (idempotent — unknown tokens are ignored). */
-export async function logout(rawToken: string): Promise<void> {
+export interface LogoutParams {
+  refreshToken: string | null;
+  /** Current access token id + expiry, denylisted when present. */
+  access?: { jti: string; expiresAt: number };
+}
+
+/** Revoke the presented refresh token and denylist the current access token. */
+export async function logout(params: LogoutParams): Promise<void> {
+  if (params.refreshToken) {
+    await prisma.refreshToken.updateMany({
+      where: { tokenHash: hashRefreshToken(params.refreshToken), revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  }
+  if (params.access) {
+    const ttl = params.access.expiresAt - Math.floor(Date.now() / 1000);
+    if (ttl > 0) {
+      await revokeAccessToken(params.access.jti, ttl);
+    }
+  }
+}
+
+/**
+ * Revoke every session for a user: all refresh tokens, plus a Redis cutoff that
+ * invalidates every access token issued so far (and the current one explicitly).
+ */
+export async function logoutAll(userId: string, currentJti: string, currentExp: number): Promise<void> {
   await prisma.refreshToken.updateMany({
-    where: { tokenHash: hashRefreshToken(rawToken), revokedAt: null },
+    where: { userId, revokedAt: null },
     data: { revokedAt: new Date() },
   });
+  const now = Math.floor(Date.now() / 1000);
+  await revokeUserTokensBefore(userId, now, refreshTtlSeconds);
+  const ttl = currentExp - now;
+  if (ttl > 0) {
+    await revokeAccessToken(currentJti, ttl);
+  }
 }
