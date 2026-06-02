@@ -1,4 +1,4 @@
-import amqp, { type ConfirmChannel } from 'amqplib';
+import amqp, { type Channel, type ConfirmChannel } from 'amqplib';
 import { config } from '../config/env.js';
 import { logger } from '../observability/logger.js';
 import { EXCHANGE, assertTopology } from './topology.js';
@@ -19,11 +19,30 @@ class RabbitMQ {
   private channel: ConfirmChannel | null = null;
   private connecting: Promise<void> | null = null;
   private closing = false;
+  private readonly onConnectedCallbacks: Array<() => void> = [];
 
   constructor(private readonly url: string | undefined) {}
 
   isReady(): boolean {
     return this.channel !== null;
+  }
+
+  /**
+   * Register a callback invoked on every successful (re)connection — and
+   * immediately if already connected. Consumers use this to (re)establish their
+   * own channel after a reconnect.
+   */
+  onConnected(callback: () => void): void {
+    this.onConnectedCallbacks.push(callback);
+    if (this.isReady()) callback();
+  }
+
+  /** Open a fresh channel on the live connection (for consumers). */
+  async createChannel(): Promise<Channel> {
+    if (!this.connection) {
+      throw new Error('rabbitmq not connected');
+    }
+    return this.connection.createChannel();
   }
 
   async connect(): Promise<void> {
@@ -56,6 +75,13 @@ class RabbitMQ {
       this.connection = connection;
       this.channel = channel;
       logger.info('rabbitmq connected; topology asserted');
+      for (const callback of this.onConnectedCallbacks) {
+        try {
+          callback();
+        } catch (err) {
+          logger.error({ err }, 'rabbitmq onConnected callback failed');
+        }
+      }
     } catch (err) {
       this.connection = null;
       this.channel = null;

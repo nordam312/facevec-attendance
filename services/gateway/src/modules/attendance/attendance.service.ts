@@ -13,7 +13,7 @@ import type { Page } from '../../http/pagination.js';
 import type { AuthContext } from '../../http/types.js';
 import { EventType } from '../../messaging/events.js';
 import { recordEvent } from '../../messaging/outbox.js';
-import { extractEmbeddings } from '../ai/ai.client.js';
+import { extractViaBreaker, isAiFailure } from '../ai/ai.breaker.js';
 import { getCourseForActor } from '../courses/courses.service.js';
 import { searchNearestInCourse } from '../faces/face.repository.js';
 import type { MarkAttendanceInput } from './attendance.schemas.js';
@@ -176,7 +176,16 @@ export async function identifyAndRecord(
     throw new ConflictError('Cannot identify for a closed session');
   }
 
-  const extraction = await extractEmbeddings(file.buffer, file.originalname, file.mimetype);
+  let extraction;
+  try {
+    extraction = await extractViaBreaker(file.buffer, file.originalname, file.mimetype);
+  } catch (err) {
+    // Identification is real-time: no async fallback — surface unavailability.
+    if (isAiFailure(err)) {
+      throw new HttpError(503, 'ai_unavailable', 'Face inference is temporarily unavailable');
+    }
+    throw err;
+  }
   if (!extraction.primary) {
     throw new HttpError(422, 'no_face_detected', 'No face detected in the image');
   }
