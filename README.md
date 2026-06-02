@@ -329,6 +329,41 @@ identify, AI down  → 503
 
 ---
 
+## Dashboard & real-time feed
+
+**Gateway WebSocket** (`/ws`) powers a live attendance feed. Clients authenticate
+with `?token=<accessToken>` on the upgrade and `subscribe` to sessions they are
+authorised for. The `facevec.notifications` queue is consumed and each
+`attendance.recorded` event is fanned out to subscribers; cross-replica delivery
+uses **Redis pub/sub**, so the one replica that consumes an event reaches every
+replica's sockets (local-only fallback without Redis).
+
+```
+mark / identify → outbox → relay → facevec.notifications
+                                        │ (consumed once)
+                                        ▼
+                              Redis pub/sub  ──►  every replica
+                                        ▼
+                              WebSocket subscribers (live feed)
+```
+
+**Next.js 15 dashboard** (`apps/web`) — a client-side SPA against the gateway
+(CORS + httpOnly refresh cookie; access token in memory with transparent refresh
+on 401):
+
+| Route | Purpose |
+| --- | --- |
+| `/login` | sign in |
+| `/courses` | list / create courses |
+| `/courses/[id]` | roster, **face enrollment** (webcam or upload), open sessions |
+| `/sessions/[id]` | **live attendance feed** (WebSocket) |
+| `/sessions/[id]/scan` | capture → identify (records on a match) |
+
+Face capture supports **webcam** (`getUserMedia` → canvas → JPEG) with a
+**file-upload** fallback.
+
+---
+
 ## Delivery roadmap
 
 This project is delivered in strict, reviewable phases.
@@ -342,7 +377,7 @@ This project is delivered in strict, reviewable phases.
 | **4** | **FastAPI InsightFace embedding service + gateway enroll/identify (pgvector)** ✅ |
 | **5** | **Redis — idempotency locks, distributed rate limiting, token/session revocation** ✅ |
 | **6** | **Circuit breaker (opossum) + async fallback queue with retry/dead-letter** ✅ |
-| 7     | Next.js dashboard — enrollment UI, real-time WebSocket feed           |
+| **7** | **WebSocket live feed (Redis pub/sub) + Next.js 15 dashboard (enrollment, scan)** ✅ |
 | 8     | GitHub Actions CI/CD + test scaffolding                               |
 | 9     | Observability — OpenTelemetry, structured logging, health checks      |
 
