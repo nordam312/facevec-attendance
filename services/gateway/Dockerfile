@@ -56,4 +56,6 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
   CMD wget -qO- http://127.0.0.1:8080/health >/dev/null 2>&1 || exit 1
 
 ENTRYPOINT ["./docker-entrypoint.sh"]
+# index.js starts the OpenTelemetry bootstrap first, then dynamically imports the
+# server (tracing is a no-op unless OTEL_EXPORTER_OTLP_ENDPOINT is set).
 CMD ["node", "dist/index.js"]

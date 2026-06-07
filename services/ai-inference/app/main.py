@@ -13,13 +13,14 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, Request, Response, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
 from .config import get_settings
 from .face_engine import FaceEngine, ImageDecodeError
 from .logging_config import configure_logging, get_logger
+from .observability import metrics_middleware, metrics_response, setup_tracing
 from .routers import embeddings
 from .schemas import HealthResponse
 
@@ -46,7 +47,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.middleware("http")(metrics_middleware)
 app.include_router(embeddings.router)
+setup_tracing(app)
+
+
+@app.get("/metrics", tags=["observability"])
+async def metrics() -> Response:
+    """Prometheus metrics (request counts/latency, inference duration, faces)."""
+    return metrics_response()
 
 
 @app.exception_handler(ImageDecodeError)

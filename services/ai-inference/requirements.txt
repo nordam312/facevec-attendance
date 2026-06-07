@@ -16,3 +16,9 @@ numpy==1.26.4
 opencv-python-headless==4.10.0.84
 onnxruntime==1.19.2
 insightface==0.7.3
+
+# --- Observability ---
+prometheus-client==0.21.1
+opentelemetry-sdk==1.29.0
+opentelemetry-exporter-otlp-proto-http==1.29.0
+opentelemetry-instrumentation-fastapi==0.50b0

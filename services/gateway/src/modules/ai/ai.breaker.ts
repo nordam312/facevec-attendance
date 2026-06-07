@@ -2,6 +2,7 @@ import type { Buffer } from 'node:buffer';
 import CircuitBreaker from 'opossum';
 import { config } from '../../config/env.js';
 import { logger } from '../../observability/logger.js';
+import { aiBreakerState as aiBreakerGauge } from '../../observability/metrics.js';
 import {
   AiBadResponseError,
   AiUnavailableError,
@@ -28,9 +29,18 @@ const breaker = new CircuitBreaker(
   },
 );
 
-breaker.on('open', () => logger.warn('ai breaker OPEN — failing fast'));
-breaker.on('halfOpen', () => logger.info('ai breaker HALF-OPEN — trial request'));
-breaker.on('close', () => logger.info('ai breaker CLOSED — recovered'));
+breaker.on('open', () => {
+  aiBreakerGauge.set(2);
+  logger.warn('ai breaker OPEN — failing fast');
+});
+breaker.on('halfOpen', () => {
+  aiBreakerGauge.set(1);
+  logger.info('ai breaker HALF-OPEN — trial request');
+});
+breaker.on('close', () => {
+  aiBreakerGauge.set(0);
+  logger.info('ai breaker CLOSED — recovered');
+});
 
 export type BreakerState = 'closed' | 'open' | 'half-open';
 

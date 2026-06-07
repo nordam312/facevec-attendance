@@ -7,6 +7,7 @@ from fastapi.concurrency import run_in_threadpool
 
 from ..config import get_settings
 from ..face_engine import FaceEngine, ImageDecodeError, decode_image
+from ..observability import FACES_DETECTED, INFERENCE_DURATION
 from ..schemas import EmbeddingResponse
 
 router = APIRouter(prefix="/v1", tags=["inference"])
@@ -51,7 +52,9 @@ async def create_embeddings(
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
 
     # CPU-bound inference must not block the event loop.
-    faces = await run_in_threadpool(engine.extract, image)
+    with INFERENCE_DURATION.time():
+        faces = await run_in_threadpool(engine.extract, image)
+    FACES_DETECTED.inc(len(faces))
 
     return EmbeddingResponse(
         model=settings.insightface_model_name,
