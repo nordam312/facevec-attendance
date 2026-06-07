@@ -388,6 +388,39 @@ runs vitest), **`lint-ai`** (flake8 + mypy + pytest), and a Docker build matrix.
 
 ---
 
+## Observability
+
+Three pillars across both services:
+
+- **Metrics** — Prometheus `/metrics` on the gateway (`prom-client`) and the AI
+  service (`prometheus_client`): default process metrics + HTTP request
+  count/duration (labelled by matched route), plus app metrics
+  (`facevec_ai_breaker_state`, `facevec_outbox_pending_messages`,
+  `facevec_identify_total`, `ai_inference_duration_seconds`,
+  `ai_faces_detected_total`).
+- **Tracing** — OpenTelemetry on both services, enabled only when
+  `OTEL_EXPORTER_OTLP_ENDPOINT` is set. The gateway instruments http/express/
+  ioredis/amqplib/undici (so the gateway→AI call propagates W3C `traceparent`)
+  and the AI service continues the trace via the FastAPI instrumentor — yielding
+  end-to-end distributed traces.
+- **Logs** — pino (gateway) / structlog (AI), JSON in production; the gateway
+  injects the active `trace_id`/`span_id` into every log line so logs correlate
+  to traces.
+
+Run the optional stack (Jaeger + Prometheus) and ship telemetry to it:
+
+```bash
+echo 'OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318' >> .env
+docker compose --profile observability up -d
+# Jaeger UI → http://localhost:16686    Prometheus → http://localhost:9090
+```
+
+The gateway starts its tracing bootstrap first, then dynamically imports the app
+so the instrumentations patch its modules (avoiding the `--import` double-init
+pitfall). Tracing is a no-op when no endpoint is configured.
+
+---
+
 ## Delivery roadmap
 
 This project is delivered in strict, reviewable phases.
@@ -403,7 +436,7 @@ This project is delivered in strict, reviewable phases.
 | **6** | **Circuit breaker (opossum) + async fallback queue with retry/dead-letter** ✅ |
 | **7** | **WebSocket live feed (Redis pub/sub) + Next.js 15 dashboard (enrollment, scan)** ✅ |
 | **8** | **Test suites (vitest unit/integration, pytest) + CI test jobs** ✅ |
-| 9     | Observability — OpenTelemetry, structured logging, health checks      |
+| **9** | **Observability — OpenTelemetry tracing, Prometheus metrics, log↔trace correlation** ✅ |
 
 > **Phase 0 note:** the gateway and AI service ship minimal but *real* bootstrap
 > entrypoints (working `/health` + `/ready` probes), not placeholders. Their full

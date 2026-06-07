@@ -13,6 +13,7 @@ import type { Page } from '../../http/pagination.js';
 import type { AuthContext } from '../../http/types.js';
 import { EventType } from '../../messaging/events.js';
 import { recordEvent } from '../../messaging/outbox.js';
+import { identifyTotal } from '../../observability/metrics.js';
 import { extractViaBreaker, isAiFailure } from '../ai/ai.breaker.js';
 import { getCourseForActor } from '../courses/courses.service.js';
 import { searchNearestInCourse } from '../faces/face.repository.js';
@@ -194,8 +195,10 @@ export async function identifyAndRecord(
   const [best] = await searchNearestInCourse(session.courseId, extraction.primary.embedding, 1);
 
   if (!best || best.similarity < threshold) {
+    identifyTotal.inc({ result: 'unmatched' });
     return { matched: false, similarity: best?.similarity ?? null, threshold, student: null, record: null };
   }
+  identifyTotal.inc({ result: 'matched' });
 
   const record = await prisma.$transaction(async (tx) => {
     const upserted = await tx.attendanceRecord.upsert({

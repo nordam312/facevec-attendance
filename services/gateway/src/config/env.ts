@@ -62,6 +62,8 @@ const envSchema = z.object({
   FACE_TASK_PREFETCH: z.coerce.number().int().positive().default(4),
   FACE_TASK_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
   FACE_TASK_RETRY_DELAY_MS: z.coerce.number().int().positive().default(10_000),
+  // Note: OTEL_EXPORTER_OTLP_ENDPOINT / OTEL_SERVICE_NAME are read directly by
+  // the tracing bootstrap (observability/tracing.ts), not validated here.
 });
 
 export type AppConfig = Readonly<z.infer<typeof envSchema>> & {

@@ -14,9 +14,9 @@ process.env.NODE_ENV = 'test';
 process.env.LOG_LEVEL = 'silent';
 process.env.JWT_ACCESS_SECRET ??= 'test-access-secret-0123456789-abcdefgh';
 process.env.JWT_REFRESH_SECRET ??= 'test-refresh-secret-0123456789-abcdefgh';
-// Relax rate limits so test suites are not throttled.
-process.env.RATE_LIMIT_AUTH ??= '100000';
-process.env.RATE_LIMIT_GLOBAL ??= '100000';
+// Relax rate limits so test suites are not throttled (override any .env value).
+process.env.RATE_LIMIT_AUTH = '100000';
+process.env.RATE_LIMIT_GLOBAL = '100000';
 
 // The integration tests exercise the HTTP app against Postgres only — Redis and
 // RabbitMQ are unset so the app uses the in-memory rate limiter and the outbox

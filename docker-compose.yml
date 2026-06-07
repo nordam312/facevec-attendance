@@ -120,6 +120,10 @@ services:
       AI_INFERENCE_URL: http://ai-inference:8000
       AI_INFERENCE_TIMEOUT_MS: ${AI_INFERENCE_TIMEOUT_MS:-8000}
       IDEMPOTENCY_TTL_SECONDS: ${IDEMPOTENCY_TTL_SECONDS:-86400}
+      # Tracing is enabled only when this points at an OTLP/HTTP collector
+      # (e.g. http://jaeger:4318 with the `observability` profile).
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_SERVICE_NAME: facevec-gateway
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-900}
@@ -156,6 +160,8 @@ services:
       FACE_DET_SIZE: ${FACE_DET_SIZE:-640}
       FACE_DET_THRESH: ${FACE_DET_THRESH:-0.5}
       MAX_IMAGE_BYTES: ${MAX_IMAGE_BYTES:-10485760}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_SERVICE_NAME: facevec-ai-inference
     ports:
       - "${AI_INFERENCE_PORT:-8000}:8000"
     networks: [facevec-net]
@@ -185,6 +191,36 @@ services:
     networks: [facevec-net]
     logging: *default-logging
 
+  # ===========================================================================
+  # Observability stack (opt-in): `docker compose --profile observability up`.
+  # Set OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318 in .env to ship traces.
+  # ===========================================================================
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    container_name: facevec-jaeger
+    profiles: [observability]
+    <<: *default-restart
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686" # Jaeger UI
+      - "4318:4318" # OTLP/HTTP
+    networks: [facevec-net]
+    logging: *default-logging
+
+  prometheus:
+    image: prom/prometheus:v3.0.1
+    container_name: facevec-prometheus
+    profiles: [observability]
+    <<: *default-restart
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    networks: [facevec-net]
+    logging: *default-logging
+
 networks:
   facevec-net:
     driver: bridge
@@ -193,3 +229,4 @@ volumes:
   postgres-data:
   redis-data:
   rabbitmq-data:
+  prometheus-data:
