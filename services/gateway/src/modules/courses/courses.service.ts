@@ -121,33 +121,94 @@ export async function listEnrollments(
   return { items, total, page: query.page, pageSize: query.pageSize };
 }
 
+/** How a roster row was resolved to a student before linking. */
+export interface ResolveResult {
+  enrollment: EnrollmentWithStudent;
+  /** A brand-new global student was created. */
+  created: boolean;
+  /** The course link already existed — this call was an idempotent no-op. */
+  alreadyEnrolled: boolean;
+}
+
+export interface ResolveInput {
+  studentId?: string | undefined;
+  studentNumber?: string | undefined;
+  fullName?: string | undefined;
+  email?: string | undefined;
+}
+
+/**
+ * Resolve a student (by id, or find-or-create by number) and link them to the
+ * course — **inside the caller's transaction**. Re-enrolling is idempotent, and
+ * the `CourseStudentEnrolled` event is recorded only for a genuinely new link.
+ * Shared by the single-enroll endpoint and the bulk-import worker so both paths
+ * behave identically. Throws domain errors for unrecoverable rows (unknown id,
+ * missing name for a new student, e-mail collision).
+ */
+export async function resolveAndLinkStudent(
+  tx: Prisma.TransactionClient,
+  courseId: string,
+  input: ResolveInput,
+): Promise<ResolveResult> {
+  let student: Student | null;
+  let created = false;
+
+  if (input.studentId) {
+    student = await tx.student.findUnique({ where: { id: input.studentId } });
+    if (!student) throw new NotFoundError('Student not found');
+  } else {
+    const studentNumber = input.studentNumber?.trim();
+    if (!studentNumber) throw new BadRequestError('studentNumber is required');
+    student = await tx.student.findUnique({ where: { studentNumber } });
+    if (!student) {
+      const fullName = input.fullName?.trim();
+      if (!fullName) {
+        throw new BadRequestError('fullName is required to create a new student');
+      }
+      try {
+        student = await tx.student.create({
+          data: { studentNumber, fullName, email: input.email?.trim() || null },
+        });
+        created = true;
+      } catch (err) {
+        // The number was just checked, so a unique violation here is the e-mail
+        // colliding with a *different* student.
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+          throw new ConflictError('A different student already uses this email');
+        }
+        throw err;
+      }
+    }
+  }
+
+  const existing = await tx.courseEnrollment.findUnique({
+    where: { courseId_studentId: { courseId, studentId: student.id } },
+    include: { student: true },
+  });
+  if (existing) return { enrollment: existing, created, alreadyEnrolled: true };
+
+  const enrollment = await tx.courseEnrollment.create({
+    data: { courseId, studentId: student.id },
+    include: { student: true },
+  });
+  await recordEvent(tx, {
+    aggregateType: 'Course',
+    aggregateId: courseId,
+    eventType: EventType.CourseStudentEnrolled,
+    payload: { enrollmentId: enrollment.id, courseId, studentId: student.id },
+  });
+  return { enrollment, created, alreadyEnrolled: false };
+}
+
+export type EnrollResult = ResolveResult;
+
 export async function enrollStudent(
   courseId: string,
-  studentId: string,
+  input: ResolveInput,
   actor: AuthContext,
-): Promise<EnrollmentWithStudent> {
+): Promise<EnrollResult> {
   await getCourseForActor(courseId, actor);
-  try {
-    return await prisma.$transaction(async (tx) => {
-      const enrollment = await tx.courseEnrollment.create({
-        data: { courseId, studentId },
-        include: { student: true },
-      });
-      await recordEvent(tx, {
-        aggregateType: 'Course',
-        aggregateId: courseId,
-        eventType: EventType.CourseStudentEnrolled,
-        payload: { enrollmentId: enrollment.id, courseId, studentId },
-      });
-      return enrollment;
-    });
-  } catch (err) {
-    if (err instanceof Prisma.PrismaClientKnownRequestError) {
-      if (err.code === 'P2002') throw new ConflictError('Student is already enrolled in this course');
-      if (err.code === 'P2003') throw new NotFoundError('Student not found');
-    }
-    throw err;
-  }
+  return prisma.$transaction((tx) => resolveAndLinkStudent(tx, courseId, input));
 }
 
 export async function unenrollStudent(

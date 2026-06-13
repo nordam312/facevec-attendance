@@ -4,9 +4,11 @@ import { WebSocketServer, type RawData } from 'ws';
 import { UserId } from '../domain/index.js';
 import type { AuthContext } from '../http/types.js';
 import { getSession } from '../modules/attendance/attendance.service.js';
+import { assertImportJobAccess } from '../modules/courses/bulk-import.service.js';
 import { verifyAccessToken } from '../modules/auth/token.service.js';
 import { logger } from '../observability/logger.js';
 import { isAccessTokenRevoked, userTokenCutoff } from '../redis/token-revocation.js';
+import { importTopic } from './broadcaster.js';
 import { connectionRegistry, type AuthedSocket } from './connection-registry.js';
 
 /**
@@ -19,6 +21,7 @@ const HEARTBEAT_MS = 30_000;
 interface ClientMessage {
   type?: string;
   sessionId?: string;
+  jobId?: string;
 }
 
 async function authenticate(token: string): Promise<AuthContext | null> {
@@ -55,6 +58,18 @@ async function onMessage(ws: AuthedSocket, data: RawData): Promise<void> {
 
   switch (msg.type) {
     case 'subscribe': {
+      // Bulk-import progress stream — authorized via the job's course.
+      if (typeof msg.jobId === 'string') {
+        try {
+          await assertImportJobAccess(msg.jobId, ws.auth); // 404/403 if not permitted
+        } catch {
+          send(ws, { type: 'error', message: 'not authorized for this job', jobId: msg.jobId });
+          return;
+        }
+        connectionRegistry.subscribe(importTopic(msg.jobId), ws);
+        send(ws, { type: 'subscribed', jobId: msg.jobId });
+        return;
+      }
       if (typeof msg.sessionId !== 'string') {
         send(ws, { type: 'error', message: 'sessionId is required' });
         return;
@@ -70,6 +85,11 @@ async function onMessage(ws: AuthedSocket, data: RawData): Promise<void> {
       return;
     }
     case 'unsubscribe': {
+      if (typeof msg.jobId === 'string') {
+        connectionRegistry.unsubscribe(importTopic(msg.jobId), ws);
+        send(ws, { type: 'unsubscribed', jobId: msg.jobId });
+        return;
+      }
       if (typeof msg.sessionId === 'string') {
         connectionRegistry.unsubscribe(msg.sessionId, ws);
       }

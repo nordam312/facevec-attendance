@@ -12,11 +12,14 @@ import {
   unenrollStudent,
   updateCourse,
 } from './courses.service.js';
-import { serializeCourse, serializeEnrollment } from './course.serializer.js';
+import { createBulkImportJob, getImportJob } from './bulk-import.service.js';
+import { serializeCourse, serializeEnrollment, serializeImportJob } from './course.serializer.js';
 import type {
+  BulkEnrollInput,
   CreateCourseInput,
   EnrollmentParams,
   EnrollStudentInput,
+  ImportJobParams,
   ListCoursesQuery,
   UpdateCourseInput,
 } from './courses.schemas.js';
@@ -56,9 +59,27 @@ export const listEnrollmentsHandler = asyncHandler(async (req, res) => {
 
 export const enrollStudentHandler = asyncHandler(async (req, res) => {
   const { id } = req.valid?.params as IdParam;
-  const { studentId } = req.valid?.body as EnrollStudentInput;
-  const enrollment = await enrollStudent(id, studentId, actorOf(req));
-  res.status(201).json({ enrollment: serializeEnrollment(enrollment) });
+  const result = await enrollStudent(id, req.valid?.body as EnrollStudentInput, actorOf(req));
+  // 200 if the link already existed (idempotent), 201 for a freshly created one.
+  res.status(result.alreadyEnrolled ? 200 : 201).json({
+    enrollment: serializeEnrollment(result.enrollment),
+    created: result.created,
+    alreadyEnrolled: result.alreadyEnrolled,
+  });
+});
+
+export const bulkEnrollHandler = asyncHandler(async (req, res) => {
+  const { id } = req.valid?.params as IdParam;
+  const { rows } = req.valid?.body as BulkEnrollInput;
+  const job = await createBulkImportJob(id, rows, actorOf(req));
+  // Non-blocking: the job is queued; the client tracks progress over WebSocket.
+  res.status(202).json({ job: serializeImportJob(job) });
+});
+
+export const getImportJobHandler = asyncHandler(async (req, res) => {
+  const { id, jobId } = req.valid?.params as ImportJobParams;
+  const job = await getImportJob(id, jobId, actorOf(req));
+  res.json({ job: serializeImportJob(job) });
 });
 
 export const unenrollStudentHandler = asyncHandler(async (req, res) => {

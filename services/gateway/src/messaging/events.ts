@@ -8,6 +8,9 @@
 export const EventType = {
   AttendanceRecorded: 'attendance.recorded',
   CourseStudentEnrolled: 'course.student_enrolled',
+  // Bulk roster import. Routed (via `import.#`) to its own queue rather than the
+  // notifications fan-out, so heavy batch work never blocks live-feed events.
+  CourseBulkImportRequested: 'import.bulk.requested',
   // Produced once the face pipeline endpoints exist (Phase 4).
   FaceEnrollmentRequested: 'face.enrollment.requested',
   FaceRecognitionRequested: 'face.recognition.requested',
@@ -30,4 +33,17 @@ export interface CourseStudentEnrolledPayload {
   enrollmentId: string;
   courseId: string;
   studentId: string;
+}
+
+/** A single roster row to resolve (find-or-create) and link to the course. */
+export interface BulkImportRow {
+  studentNumber: string;
+  fullName?: string;
+  email?: string;
+}
+
+export interface CourseBulkImportRequestedPayload {
+  jobId: string;
+  courseId: string;
+  rows: BulkImportRow[];
 }

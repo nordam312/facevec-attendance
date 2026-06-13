@@ -1,14 +1,22 @@
 import type {
+  BulkImportRow,
   Course,
   Enrollment,
+  EnrollResponse,
   FaceEmbedding,
   IdentifyResult,
+  ImportJob,
   Paginated,
   Session,
   AttendanceRecord,
   Student,
   User,
 } from './types';
+
+/** Payload for the single-enroll endpoint: an existing student, or a roster row. */
+export type EnrollPayload =
+  | { studentId: string }
+  | { studentNumber: string; fullName?: string; email?: string };
 
 const BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080') + '/api/v1';
 
@@ -112,14 +120,23 @@ export const api = {
   listEnrollments(courseId: string): Promise<Paginated<Enrollment>> {
     return request<Paginated<Enrollment>>(`/courses/${courseId}/enrollments?pageSize=100`);
   },
-  enroll(courseId: string, studentId: string): Promise<{ enrollment: Enrollment }> {
-    return request<{ enrollment: Enrollment }>(`/courses/${courseId}/enrollments`, {
+  enroll(courseId: string, payload: EnrollPayload): Promise<EnrollResponse> {
+    return request<EnrollResponse>(`/courses/${courseId}/enrollments`, {
       method: 'POST',
-      json: { studentId },
+      json: payload,
     });
   },
   unenroll(courseId: string, studentId: string): Promise<void> {
     return request<void>(`/courses/${courseId}/enrollments/${studentId}`, { method: 'DELETE' });
+  },
+  bulkEnroll(courseId: string, rows: BulkImportRow[]): Promise<{ job: ImportJob }> {
+    return request<{ job: ImportJob }>(`/courses/${courseId}/enrollments/bulk`, {
+      method: 'POST',
+      json: { rows },
+    });
+  },
+  getImportJob(courseId: string, jobId: string): Promise<{ job: ImportJob }> {
+    return request<{ job: ImportJob }>(`/courses/${courseId}/imports/${jobId}`);
   },
 
   // --- students ---

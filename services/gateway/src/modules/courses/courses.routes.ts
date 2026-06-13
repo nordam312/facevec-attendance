@@ -5,19 +5,23 @@ import { requireCapability } from '../../http/middleware/authorize.js';
 import { validate } from '../../http/middleware/validate.js';
 import { idParamSchema, paginationSchema } from '../../http/common.schemas.js';
 import {
+  bulkEnrollHandler,
   createCourseHandler,
   deleteCourseHandler,
   enrollStudentHandler,
   getCourseHandler,
+  getImportJobHandler,
   listCoursesHandler,
   listEnrollmentsHandler,
   unenrollStudentHandler,
   updateCourseHandler,
 } from './courses.controller.js';
 import {
+  bulkEnrollSchema,
   createCourseSchema,
   enrollStudentSchema,
   enrollmentParamsSchema,
+  importJobParamsSchema,
   listCoursesQuerySchema,
   updateCourseSchema,
 } from './courses.schemas.js';
@@ -49,6 +53,17 @@ coursesRouter.post(
   '/:id/enrollments',
   validate({ params: idParamSchema, body: enrollStudentSchema }),
   enrollStudentHandler,
+);
+// Bulk roster import (async): returns 202 + jobId; progress streams over /ws.
+coursesRouter.post(
+  '/:id/enrollments/bulk',
+  validate({ params: idParamSchema, body: bulkEnrollSchema }),
+  bulkEnrollHandler,
+);
+coursesRouter.get(
+  '/:id/imports/:jobId',
+  validate({ params: importJobParamsSchema }),
+  getImportJobHandler,
 );
 coursesRouter.delete(
   '/:id/enrollments/:studentId',

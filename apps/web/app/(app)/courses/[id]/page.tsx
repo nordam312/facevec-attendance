@@ -1,12 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/api';
 import type { Course, Enrollment, Session } from '@/lib/types';
-import { Alert, Badge, Button, Card, Input, Spinner } from '@/components/ui';
+import { Alert, Badge, Button, Card, Spinner } from '@/components/ui';
 import { CaptureInput } from '@/components/CaptureInput';
+import { RosterAddForm } from '@/components/RosterAddForm';
+import { BulkImportPanel } from '@/components/BulkImportPanel';
 
 const message = (err: unknown) => (err instanceof ApiError ? err.message : 'Something went wrong');
 
@@ -18,9 +20,6 @@ export default function CourseDetailPage() {
   const [sessions, setSessions] = useState<Session[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const [studentNumber, setStudentNumber] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [adding, setAdding] = useState(false);
   const [enrollFor, setEnrollFor] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
 
@@ -37,23 +36,6 @@ export default function CourseDetailPage() {
   useEffect(() => {
     load();
   }, [load]);
-
-  const addStudent = async (event: FormEvent) => {
-    event.preventDefault();
-    setAdding(true);
-    setError(null);
-    try {
-      const { student } = await api.createStudent(studentNumber, fullName);
-      await api.enroll(courseId, student.id);
-      setStudentNumber('');
-      setFullName('');
-      load();
-    } catch (err) {
-      setError(message(err));
-    } finally {
-      setAdding(false);
-    }
-  };
 
   const remove = async (studentId: string) => {
     setError(null);
@@ -105,16 +87,8 @@ export default function CourseDetailPage() {
       {error && <Alert>{error}</Alert>}
       {feedback && <Alert tone="green">{feedback}</Alert>}
 
-      <Card>
-        <h2 className="mb-3 text-sm font-semibold">Add student to roster</h2>
-        <form onSubmit={addStudent} className="flex flex-col gap-3 sm:flex-row">
-          <Input placeholder="Student number" value={studentNumber} onChange={(e) => setStudentNumber(e.target.value)} required />
-          <Input placeholder="Full name" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
-          <Button type="submit" disabled={adding}>
-            {adding ? 'Adding…' : 'Add'}
-          </Button>
-        </form>
-      </Card>
+      <RosterAddForm courseId={courseId} onChanged={load} />
+      <BulkImportPanel courseId={courseId} onChanged={load} />
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold">Roster {roster && <span className="text-neutral-400">({roster.length})</span>}</h2>

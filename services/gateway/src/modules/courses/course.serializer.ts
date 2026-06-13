@@ -1,4 +1,4 @@
-import type { Course, CourseEnrollment, Student } from '@prisma/client';
+import type { Course, CourseEnrollment, ImportJob, Student } from '@prisma/client';
 import { serializeStudent, type StudentDto } from '../students/student.serializer.js';
 
 export interface CourseDto {
@@ -36,5 +36,29 @@ export function serializeEnrollment(enrollment: CourseEnrollment & { student: St
     studentId: enrollment.studentId,
     enrolledAt: enrollment.createdAt.toISOString(),
     student: serializeStudent(enrollment.student),
+  };
+}
+
+export interface ImportJobDto {
+  id: string;
+  courseId: string;
+  status: string;
+  totalRows: number;
+  processedRows: number;
+  report: unknown;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function serializeImportJob(job: ImportJob): ImportJobDto {
+  return {
+    id: job.id,
+    courseId: job.courseId,
+    status: job.status,
+    totalRows: job.totalRows,
+    processedRows: job.processedRows,
+    report: job.report ?? null,
+    createdAt: job.createdAt.toISOString(),
+    updatedAt: job.updatedAt.toISOString(),
   };
 }

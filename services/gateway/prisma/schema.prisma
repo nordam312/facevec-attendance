@@ -57,6 +57,13 @@ enum OutboxStatus {
   FAILED
 }
 
+enum ImportJobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
 // ---- Identity & auth --------------------------------------------------------
 
 /// An authenticated principal. Professors own courses & sessions; admins manage
@@ -152,9 +159,31 @@ model Course {
   professor   User                @relation("CourseProfessor", fields: [professorId], references: [id], onDelete: Restrict)
   enrollments CourseEnrollment[]
   sessions    AttendanceSession[]
+  importJobs  ImportJob[]
 
   @@index([professorId])
   @@map("courses")
+}
+
+/// Tracks one bulk roster import (CSV/Excel). Created PENDING by the gateway,
+/// driven to COMPLETED/FAILED by the bulk-import consumer. `report` holds the
+/// per-row outcome once finished; `processedRows`/`totalRows` back the live
+/// progress bar pushed over WebSocket while the worker runs.
+model ImportJob {
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  courseId      String          @map("course_id") @db.Uuid
+  createdById   String?         @map("created_by_id") @db.Uuid
+  status        ImportJobStatus @default(PENDING)
+  totalRows     Int             @default(0) @map("total_rows")
+  processedRows Int             @default(0) @map("processed_rows")
+  report        Json?
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId])
+  @@map("import_jobs")
 }
 
 /// Roster join row: which student belongs to which course.

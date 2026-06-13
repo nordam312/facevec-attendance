@@ -96,3 +96,52 @@ export interface AttendanceEvent {
   capturedAt: string;
   recordId: string;
 }
+
+// ---- Bulk roster import -----------------------------------------------------
+
+export type ImportJobStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+export type ImportRowStatus = 'created' | 'enrolled' | 'already' | 'error';
+
+/** A single roster row submitted for import. */
+export interface BulkImportRow {
+  studentNumber: string;
+  fullName?: string;
+  email?: string;
+}
+
+export interface ImportRowResult {
+  row: number;
+  studentNumber: string;
+  status: ImportRowStatus;
+  message?: string;
+}
+
+export interface ImportJob {
+  id: string;
+  courseId: string;
+  status: ImportJobStatus;
+  totalRows: number;
+  processedRows: number;
+  report: { rows?: ImportRowResult[] } | ImportRowResult[] | { error: string } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Live bulk-import progress frame pushed over the WebSocket feed. */
+export interface ImportProgressEvent {
+  type: 'import.progress' | 'import.completed' | 'import.failed';
+  jobId: string;
+  courseId: string;
+  status: ImportJobStatus;
+  totalRows: number;
+  processedRows: number;
+  counts: { created: number; enrolled: number; already: number; failed: number };
+  report?: ImportRowResult[];
+}
+
+/** Response from the single-enroll endpoint. */
+export interface EnrollResponse {
+  enrollment: Enrollment;
+  created: boolean;
+  alreadyEnrolled: boolean;
+}

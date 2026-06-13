@@ -21,6 +21,8 @@ export const QUEUE = {
   FACE_TASKS_DEAD: 'facevec.face_tasks.dead',
   /** Domain-event fan-out for notifications / projections (Phases 7+). */
   NOTIFICATIONS: 'facevec.notifications',
+  /** Bulk roster-import jobs — drained by the bulk-import consumer. */
+  BULK_IMPORTS: 'facevec.bulk_imports',
 } as const;
 
 export async function assertTopology(channel: Channel): Promise<void> {
@@ -28,6 +30,7 @@ export async function assertTopology(channel: Channel): Promise<void> {
 
   await channel.assertQueue(QUEUE.FACE_TASKS, { durable: true });
   await channel.assertQueue(QUEUE.NOTIFICATIONS, { durable: true });
+  await channel.assertQueue(QUEUE.BULK_IMPORTS, { durable: true });
   await channel.assertQueue(QUEUE.FACE_TASKS_DEAD, { durable: true });
   await channel.assertQueue(QUEUE.FACE_TASKS_RETRY, {
     durable: true,
@@ -43,4 +46,5 @@ export async function assertTopology(channel: Channel): Promise<void> {
   await channel.bindQueue(QUEUE.FACE_TASKS, EXCHANGE, 'face.#');
   await channel.bindQueue(QUEUE.NOTIFICATIONS, EXCHANGE, 'attendance.#');
   await channel.bindQueue(QUEUE.NOTIFICATIONS, EXCHANGE, 'course.#');
+  await channel.bindQueue(QUEUE.BULK_IMPORTS, EXCHANGE, 'import.#');
 }
