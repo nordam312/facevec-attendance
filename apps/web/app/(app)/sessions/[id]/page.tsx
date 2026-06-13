@@ -50,11 +50,11 @@ export default function SessionPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <Link href={`/courses/${session.courseId}`} className="text-sm text-indigo-500 hover:underline">
+          <Link href={`/courses/${session.courseId}`} className="text-sm text-link hover:underline">
             ← Course
           </Link>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight">Live attendance</h1>
-          <div className="mt-1 flex items-center gap-2 text-sm text-neutral-500">
+          <h1 className="mt-1 text-xl font-bold tracking-tight text-brand-900">Live attendance</h1>
+          <div className="mt-1 flex items-center gap-2 text-sm text-ink-600">
             <Badge tone={session.status === 'OPEN' ? 'green' : 'gray'}>{session.status}</Badge>
             <span className="flex items-center gap-1.5">
               <span
@@ -80,24 +80,24 @@ export default function SessionPage() {
 
       <Card>
         <h2 className="mb-3 text-sm font-semibold">
-          Present <span className="text-neutral-400">({records.length})</span>
+          Present <span className="text-ink-400">({records.length})</span>
         </h2>
         {records.length === 0 ? (
-          <p className="text-sm text-neutral-500">No one recorded yet. Recognitions appear here in real time.</p>
+          <p className="text-sm text-ink-400">No one recorded yet. Recognitions appear here in real time.</p>
         ) : (
-          <ul className="divide-y divide-neutral-200 dark:divide-neutral-800">
+          <ul className="divide-y divide-line">
             {records.map((r) => (
               <li key={r.id} className="flex items-center justify-between gap-3 py-2.5">
                 <div>
-                  <p className="text-sm font-medium">{r.student.fullName}</p>
-                  <p className="text-xs text-neutral-500">{r.student.studentNumber}</p>
+                  <p className="text-sm font-medium text-ink-900">{r.student.fullName}</p>
+                  <p className="text-xs text-ink-400">{r.student.studentNumber}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge tone={r.method === 'FACE' ? 'indigo' : 'gray'}>{r.method}</Badge>
                   {r.similarity !== null && (
-                    <span className="text-xs text-neutral-500">{(r.similarity * 100).toFixed(1)}%</span>
+                    <span className="text-xs text-ink-400">{(r.similarity * 100).toFixed(1)}%</span>
                   )}
-                  <span className="text-xs text-neutral-400">{new Date(r.capturedAt).toLocaleTimeString()}</span>
+                  <span className="text-xs text-ink-400">{new Date(r.capturedAt).toLocaleTimeString()}</span>
                 </div>
               </li>
             ))}

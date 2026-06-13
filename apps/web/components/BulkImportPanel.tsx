@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx';
 import { api, ApiError } from '@/lib/api';
 import type { BulkImportRow, ImportJob, ImportRowResult } from '@/lib/types';
 import { useImportProgress } from '@/lib/ws';
-import { Alert, Badge, Button, Card } from '@/components/ui';
+import { Alert, Badge, Button, Panel } from '@/components/ui';
 
 const message = (err: unknown) => (err instanceof ApiError ? err.message : 'Something went wrong');
 
@@ -147,20 +147,17 @@ export function BulkImportPanel({ courseId, onChanged }: { courseId: string; onC
     }
   }, [jobStatus, onChanged]);
 
-  return (
-    <Card>
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold">Bulk import (Excel / CSV)</h2>
-        {jobId && (
-          <span className="flex items-center gap-1.5 text-xs text-neutral-500">
-            <span
-              className={`h-2 w-2 rounded-full ${feedStatus === 'open' ? 'bg-green-500' : feedStatus === 'connecting' ? 'bg-amber-500' : 'bg-red-500'}`}
-            />
-            feed {feedStatus}
-          </span>
-        )}
-      </div>
+  const feedIndicator = jobId ? (
+    <span className="flex items-center gap-1.5 text-xs font-normal text-ink-600">
+      <span
+        className={`h-2 w-2 rounded-full ${feedStatus === 'open' ? 'bg-green-500' : feedStatus === 'connecting' ? 'bg-amber-500' : 'bg-red-500'}`}
+      />
+      feed {feedStatus}
+    </span>
+  ) : undefined;
 
+  return (
+    <Panel title="Bulk import (Excel / CSV)" action={feedIndicator}>
       {error && (
         <div className="mb-3">
           <Alert>{error}</Alert>
@@ -170,23 +167,19 @@ export function BulkImportPanel({ courseId, onChanged }: { courseId: string; onC
       {/* Idle: pick + preview a file. */}
       {!jobId && (
         <div className="space-y-3">
-          <div className="rounded-md border border-neutral-200 bg-neutral-50 p-3 text-xs text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900/50 dark:text-neutral-400">
+          <div className="rounded border border-line bg-section/60 p-3.5 text-xs text-ink-600">
             <p className="mb-2">
-              <span className="font-semibold text-neutral-700 dark:text-neutral-300">
-                Supported formats:
-              </span>{' '}
-              .xlsx, .xls, .csv
+              <span className="font-semibold text-brand-900">Supported formats:</span> .xlsx, .xls,
+              .csv
             </p>
-            <p className="mb-1 font-semibold text-neutral-700 dark:text-neutral-300">
-              Table structure (first sheet):
-            </p>
-            <ul className="list-disc space-y-0.5 pl-4">
+            <p className="mb-1 font-semibold text-brand-900">Table structure (first sheet):</p>
+            <ul className="list-disc space-y-0.5 pl-4 marker:text-brand-700">
               <li>The first row must be the header.</li>
               <li>
-                <span className="font-medium">Column A — Student Number</span> (required)
+                <span className="font-medium text-ink-900">Column A — Student Number</span> (required)
               </li>
               <li>
-                <span className="font-medium">Column B — Full Name</span> (optional)
+                <span className="font-medium text-ink-900">Column B — Full Name</span> (optional)
               </li>
             </ul>
             <p className="mt-2">
@@ -209,8 +202,8 @@ export function BulkImportPanel({ courseId, onChanged }: { courseId: string; onC
               Choose file…
             </Button>
             {fileName && (
-              <span className="text-xs text-neutral-500">
-                {fileName} — <span className="font-medium">{rows.length}</span> row
+              <span className="text-xs text-ink-600">
+                {fileName} — <span className="font-semibold text-brand-700">{rows.length}</span> row
                 {rows.length === 1 ? '' : 's'}
               </span>
             )}
@@ -227,19 +220,19 @@ export function BulkImportPanel({ courseId, onChanged }: { courseId: string; onC
       {jobId && (
         <div className="space-y-4">
           <div>
-            <div className="mb-1 flex items-center justify-between text-xs text-neutral-500">
-              <span>
+            <div className="mb-1.5 flex items-center justify-between text-xs">
+              <span className="text-ink-600">
                 {jobStatus === 'FAILED'
                   ? 'Import failed'
                   : terminal
                     ? 'Import complete'
                     : `Processing… ${processed}/${total}`}
               </span>
-              <span>{pct}%</span>
+              <span className="font-semibold text-brand-700">{pct}%</span>
             </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
+            <div className="h-2.5 w-full overflow-hidden rounded-full border border-line bg-section">
               <div
-                className={`h-full rounded-full transition-all duration-300 ${jobStatus === 'FAILED' ? 'bg-red-500' : 'bg-indigo-600'}`}
+                className={`h-full rounded-full transition-all duration-300 ${jobStatus === 'FAILED' ? 'bg-red-600' : 'bg-brand-700'}`}
                 style={{ width: `${pct}%` }}
               />
             </div>
@@ -255,25 +248,25 @@ export function BulkImportPanel({ courseId, onChanged }: { courseId: string; onC
           )}
 
           {terminal && report.length > 0 && (
-            <div className="max-h-64 overflow-auto rounded-md border border-neutral-200 dark:border-neutral-800">
+            <div className="max-h-64 overflow-auto rounded border border-line">
               <table className="w-full text-left text-xs">
-                <thead className="sticky top-0 bg-neutral-50 text-neutral-500 dark:bg-neutral-900">
+                <thead className="sticky top-0 bg-section font-semibold text-brand-900">
                   <tr>
-                    <th className="px-3 py-2 font-medium">#</th>
-                    <th className="px-3 py-2 font-medium">Student number</th>
-                    <th className="px-3 py-2 font-medium">Result</th>
-                    <th className="px-3 py-2 font-medium">Detail</th>
+                    <th className="px-3 py-2">#</th>
+                    <th className="px-3 py-2">Student number</th>
+                    <th className="px-3 py-2">Result</th>
+                    <th className="px-3 py-2">Detail</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                <tbody className="divide-y divide-line">
                   {report.map((r) => (
-                    <tr key={r.row}>
-                      <td className="px-3 py-1.5 text-neutral-400">{r.row}</td>
-                      <td className="px-3 py-1.5">{r.studentNumber}</td>
+                    <tr key={r.row} className="odd:bg-white even:bg-section/40">
+                      <td className="px-3 py-1.5 text-ink-400">{r.row}</td>
+                      <td className="px-3 py-1.5 text-ink-900">{r.studentNumber}</td>
                       <td className="px-3 py-1.5">
                         <Badge tone={ROW_TONE[r.status]}>{r.status}</Badge>
                       </td>
-                      <td className="px-3 py-1.5 text-neutral-500">{r.message ?? ''}</td>
+                      <td className="px-3 py-1.5 text-ink-600">{r.message ?? ''}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -288,6 +281,6 @@ export function BulkImportPanel({ courseId, onChanged }: { courseId: string; onC
           )}
         </div>
       )}
-    </Card>
+    </Panel>
   );
 }

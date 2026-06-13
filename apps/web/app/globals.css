@@ -1,9 +1,42 @@
 @import "tailwindcss";
 
+/* =============================================================================
+   Istanbul Aydın University (IAU) — UBIS-style institutional theme.
+
+   Light, classic enterprise-portal aesthetic: a navy university header band,
+   a dark secondary navigation strip, a light gray canvas with white bordered
+   panels (titled with light blue-gray header bars), classic blue links, and a
+   navy footer. Tokens generate utilities (bg-brand-900, text-link, bg-section…).
+   ========================================================================== */
+@theme {
+  --font-sans: "Segoe UI", Tahoma, Verdana, Geneva, sans-serif;
+
+  --color-brand-900: #082c57; /* official IAU navy — header, footer, primary buttons */
+  --color-brand-800: #123e72;
+  --color-brand-700: #1d5191;
+  --color-navbar: #0e1a2a; /* dark secondary navigation strip */
+
+  --color-page: #d8dce2; /* gray page canvas */
+  --color-panel: #ffffff; /* content panels */
+  --color-line: #c7cdd7; /* hairline borders */
+  --color-section: #e7ecf3; /* titled section header bars */
+
+  --color-link: #1b50a1; /* classic blue links */
+  --color-link-hover: #133a78;
+  --color-maroon: #8e3a2a; /* "Ana Menü"-style accent headings */
+
+  --color-ink-900: #20262f; /* primary text */
+  --color-ink-600: #515a67; /* secondary text */
+  --color-ink-400: #717c8b; /* muted text */
+}
+
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
 }
 
 body {
   @apply antialiased;
+  font-family: var(--font-sans);
+  color: var(--color-ink-900);
+  background-color: var(--color-page);
 }

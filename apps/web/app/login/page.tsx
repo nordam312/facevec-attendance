@@ -4,7 +4,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
-import { Alert, Button, Card, Input } from '../../components/ui';
+import { Alert, Button, Input, Panel } from '../../components/ui';
 
 export default function LoginPage() {
   const { status, login } = useAuth();
@@ -33,21 +33,19 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="grid min-h-screen place-items-center px-6">
-      <Card className="w-full max-w-sm">
-        <div className="mb-6">
-          <p className="text-xs font-medium uppercase tracking-widest text-indigo-500">FaceVec</p>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight">Sign in</h1>
-          <p className="mt-1 text-sm text-neutral-500">Professor &amp; admin dashboard</p>
-        </div>
+    <main className="grid flex-1 place-items-center px-6 py-12">
+      <Panel title="Sign in" className="w-full max-w-sm">
+        <p className="mb-4 text-sm text-ink-600">
+          Sign in to the professor &amp; admin dashboard.
+        </p>
         <form onSubmit={onSubmit} className="space-y-4">
           {error && <Alert>{error}</Alert>}
           <div>
-            <label className="mb-1 block text-sm font-medium">Email</label>
+            <label className="mb-1 block text-sm font-medium text-ink-600">Email</label>
             <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="username" />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">Password</label>
+            <label className="mb-1 block text-sm font-medium text-ink-600">Password</label>
             <Input
               type="password"
               value={password}
@@ -60,7 +58,7 @@ export default function LoginPage() {
             {busy ? 'Signing in…' : 'Sign in'}
           </Button>
         </form>
-      </Card>
+      </Panel>
     </main>
   );
 }

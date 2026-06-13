@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/api';
 import type { Course, Enrollment, Session } from '@/lib/types';
-import { Alert, Badge, Button, Card, Spinner } from '@/components/ui';
+import { Alert, Badge, Button, Panel, Spinner } from '@/components/ui';
 import { CaptureInput } from '@/components/CaptureInput';
 import { RosterAddForm } from '@/components/RosterAddForm';
 import { BulkImportPanel } from '@/components/BulkImportPanel';
@@ -77,11 +77,11 @@ export default function CourseDetailPage() {
   return (
     <div className="space-y-8">
       <div>
-        <Link href="/courses" className="text-sm text-indigo-500 hover:underline">
+        <Link href="/courses" className="text-sm text-link hover:underline">
           ← Courses
         </Link>
-        <h1 className="mt-1 text-2xl font-bold tracking-tight">{course.title}</h1>
-        <p className="text-sm uppercase tracking-wide text-neutral-500">{course.code}</p>
+        <h1 className="mt-1 text-xl font-bold tracking-tight text-brand-900">{course.title}</h1>
+        <p className="text-sm font-semibold uppercase tracking-wide text-brand-700">{course.code}</p>
       </div>
 
       {error && <Alert>{error}</Alert>}
@@ -90,58 +90,62 @@ export default function CourseDetailPage() {
       <RosterAddForm courseId={courseId} onChanged={load} />
       <BulkImportPanel courseId={courseId} onChanged={load} />
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold">Roster {roster && <span className="text-neutral-400">({roster.length})</span>}</h2>
+      <Panel title={`Roster${roster ? ` (${roster.length})` : ''}`}>
         {roster === null ? (
           <Spinner />
         ) : roster.length === 0 ? (
-          <p className="text-sm text-neutral-500">No students enrolled.</p>
+          <p className="text-sm text-ink-600">No students enrolled.</p>
         ) : (
-          roster.map((e) => (
-            <Card key={e.id}>
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="font-medium">{e.student.fullName}</p>
-                  <p className="text-xs text-neutral-500">{e.student.studentNumber}</p>
+          <ul className="divide-y divide-line">
+            {roster.map((e) => (
+              <li key={e.id} className="py-3 first:pt-0 last:pb-0">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-medium text-ink-900">{e.student.fullName}</p>
+                    <p className="text-xs text-ink-400">{e.student.studentNumber}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="secondary"
+                      onClick={() => setEnrollFor(enrollFor === e.student.id ? null : e.student.id)}
+                    >
+                      {enrollFor === e.student.id ? 'Close' : 'Enroll face'}
+                    </Button>
+                    <Button variant="ghost" onClick={() => void remove(e.student.id)}>
+                      Remove
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="secondary"
-                    onClick={() => setEnrollFor(enrollFor === e.student.id ? null : e.student.id)}
-                  >
-                    {enrollFor === e.student.id ? 'Close' : 'Enroll face'}
-                  </Button>
-                  <Button variant="ghost" onClick={() => void remove(e.student.id)}>
-                    Remove
-                  </Button>
-                </div>
-              </div>
-              {enrollFor === e.student.id && (
-                <div className="mt-4 border-t border-neutral-200 pt-4 dark:border-neutral-800">
-                  <CaptureInput onCapture={(img) => void enrollFace(e.student.id, img)} />
-                </div>
-              )}
-            </Card>
-          ))
+                {enrollFor === e.student.id && (
+                  <div className="mt-4 border-t border-line pt-4">
+                    <CaptureInput onCapture={(img) => void enrollFace(e.student.id, img)} />
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
         )}
-      </section>
+      </Panel>
 
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold">Attendance sessions</h2>
-          <Button onClick={() => void openSession()}>Open session</Button>
-        </div>
+      <Panel
+        title="Attendance sessions"
+        action={
+          <Button onClick={() => void openSession()} className="py-1.5">
+            Open session
+          </Button>
+        }
+      >
         {sessions === null ? (
           <Spinner />
         ) : sessions.length === 0 ? (
-          <p className="text-sm text-neutral-500">No sessions yet.</p>
+          <p className="text-sm text-ink-600">No sessions yet.</p>
         ) : (
-          sessions.map((s) => (
-            <Card key={s.id}>
-              <div className="flex items-center justify-between gap-3">
+          <ul className="divide-y divide-line">
+            {sessions.map((s) => (
+              <li key={s.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
                 <div>
-                  <p className="font-mono text-xs text-neutral-500">{s.id.slice(0, 8)}</p>
-                  <p className="text-xs text-neutral-400">{new Date(s.startedAt).toLocaleString()}</p>
+                  <p className="font-mono text-xs text-brand-700">{s.id.slice(0, 8)}</p>
+                  <p className="text-xs text-ink-400">{new Date(s.startedAt).toLocaleString()}</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <Badge tone={s.status === 'OPEN' ? 'green' : 'gray'}>{s.status}</Badge>
@@ -152,11 +156,11 @@ export default function CourseDetailPage() {
                     <Button variant="secondary">Scan</Button>
                   </Link>
                 </div>
-              </div>
-            </Card>
-          ))
+              </li>
+            ))}
+          </ul>
         )}
-      </section>
+      </Panel>
     </div>
   );
 }

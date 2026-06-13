@@ -99,7 +99,7 @@ export function CaptureInput({
           accept="image/*"
           onChange={handleFile}
           disabled={busy}
-          className="block w-full text-sm text-neutral-600 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-600 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-indigo-500 dark:text-neutral-300"
+          className="block w-full text-sm text-ink-600 file:mr-3 file:rounded file:border-0 file:bg-brand-900 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-brand-800"
         />
       ) : (
         <div className="space-y-2">
@@ -108,7 +108,7 @@ export function CaptureInput({
             autoPlay
             playsInline
             muted
-            className="aspect-video w-full rounded-lg bg-neutral-900 object-cover"
+            className="aspect-video w-full rounded border border-line bg-ink-900 object-cover"
           />
           <Button onClick={snapshot} disabled={busy} type="button">
             Capture frame
@@ -118,7 +118,7 @@ export function CaptureInput({
 
       {preview && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={preview} alt="captured preview" className="h-32 w-32 rounded-lg border border-neutral-200 object-cover dark:border-neutral-800" />
+        <img src={preview} alt="captured preview" className="h-32 w-32 rounded border border-line object-cover" />
       )}
     </div>
   );

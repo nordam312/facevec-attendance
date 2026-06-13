@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/api';
 import type { Course } from '@/lib/types';
-import { Alert, Button, Card, Input, Spinner } from '@/components/ui';
+import { Alert, Button, Card, Input, Panel, Spinner } from '@/components/ui';
 
 const message = (err: unknown) => (err instanceof ApiError ? err.message : 'Something went wrong');
 
@@ -45,14 +45,13 @@ export default function CoursesPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Courses</h1>
-        <p className="text-sm text-neutral-500">Create a course, manage its roster, and run attendance sessions.</p>
+        <h1 className="text-xl font-bold tracking-tight text-brand-900">Courses</h1>
+        <p className="text-sm text-ink-600">Create a course, manage its roster, and run attendance sessions.</p>
       </div>
 
       {error && <Alert>{error}</Alert>}
 
-      <Card>
-        <h2 className="mb-3 text-sm font-semibold">New course</h2>
+      <Panel title="New course">
         <form onSubmit={create} className="flex flex-col gap-3 sm:flex-row">
           <Input placeholder="Code (e.g. CS-401)" value={code} onChange={(e) => setCode(e.target.value)} required />
           <Input placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} required />
@@ -60,19 +59,19 @@ export default function CoursesPage() {
             {busy ? 'Creating…' : 'Create'}
           </Button>
         </form>
-      </Card>
+      </Panel>
 
       {courses === null ? (
         <Spinner label="Loading courses…" />
       ) : courses.length === 0 ? (
-        <p className="text-sm text-neutral-500">No courses yet.</p>
+        <p className="text-sm text-ink-600">No courses yet.</p>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {courses.map((course) => (
             <Link key={course.id} href={`/courses/${course.id}`}>
-              <Card className="transition-colors hover:border-indigo-400">
-                <p className="text-xs font-medium uppercase tracking-wide text-indigo-500">{course.code}</p>
-                <p className="mt-1 font-semibold">{course.title}</p>
+              <Card interactive>
+                <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">{course.code}</p>
+                <p className="mt-1 font-semibold text-ink-900">{course.title}</p>
               </Card>
             </Link>
           ))}

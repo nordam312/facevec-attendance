@@ -1,10 +1,12 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { Providers } from './providers';
+import { Nav } from '@/components/Nav';
+import { Footer } from '@/components/Footer';
 
 export const metadata: Metadata = {
-  title: 'FaceVec Attendance',
-  description: 'Distributed, event-driven face attendance checker — admin dashboard.',
+  title: 'IAU FaceVec — Attendance System',
+  description: 'Istanbul Aydin University — distributed, event-driven face attendance system.',
 };
 
 export default function RootLayout({
@@ -12,8 +14,14 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-neutral-50 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
-        <Providers>{children}</Providers>
+      <body className="min-h-screen">
+        <Providers>
+          <div className="flex min-h-screen flex-col">
+            <Nav />
+            <div className="flex-1">{children}</div>
+            <Footer />
+          </div>
+        </Providers>
       </body>
     </html>
   );

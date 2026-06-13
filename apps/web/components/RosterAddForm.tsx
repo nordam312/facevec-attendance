@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { api, ApiError } from '@/lib/api';
 import type { Student } from '@/lib/types';
-import { Button, Card, Input } from '@/components/ui';
+import { Button, Input, Panel } from '@/components/ui';
 
 const message = (err: unknown) => (err instanceof ApiError ? err.message : 'Something went wrong');
 
@@ -98,10 +98,9 @@ export function RosterAddForm({ courseId, onChanged }: { courseId: string; onCha
   };
 
   return (
-    <Card>
-      <h2 className="mb-3 text-sm font-semibold">Add student to roster</h2>
+    <Panel title="Add student to roster">
       <form onSubmit={submit} className="flex flex-col gap-3 sm:flex-row">
-        <div className="relative flex-1">
+        <div className="relative sm:flex-1">
           <Input
             placeholder="Student number"
             value={studentNumber}
@@ -111,17 +110,17 @@ export function RosterAddForm({ courseId, onChanged }: { courseId: string; onCha
             required
           />
           {open && suggestions.length > 0 && (
-            <ul className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded-md border border-neutral-200 bg-white shadow-lg dark:border-neutral-700 dark:bg-neutral-900">
+            <ul className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded border border-line bg-white shadow-lg">
               {suggestions.map((s) => (
                 <li key={s.id}>
                   <button
                     type="button"
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => pick(s)}
-                    className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                    className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-ink-900 transition-colors duration-150 hover:bg-section"
                   >
                     <span>{s.fullName}</span>
-                    <span className="text-neutral-400">{s.studentNumber}</span>
+                    <span className="text-ink-400">{s.studentNumber}</span>
                   </button>
                 </li>
               ))}
@@ -134,13 +133,14 @@ export function RosterAddForm({ courseId, onChanged }: { courseId: string; onCha
           onChange={(e) => setFullName(e.target.value)}
           disabled={!!selectedId}
           required={!selectedId}
+          className="sm:flex-1"
         />
         <Button type="submit" disabled={busy}>
           {busy ? '…' : selectedId ? 'Enroll' : 'Add'}
         </Button>
       </form>
-      {note && <p className="mt-2 text-xs text-neutral-500">{note}</p>}
-      {error && <p className="mt-2 text-xs text-red-600 dark:text-red-400">{error}</p>}
-    </Card>
+      {note && <p className="mt-2 text-xs text-ink-600">{note}</p>}
+      {error && <p className="mt-2 text-xs text-red-700">{error}</p>}
+    </Panel>
   );
 }
