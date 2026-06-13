@@ -1,0 +1,5 @@
+# Enforce LF for files that run in Linux containers
+*.sh text eol=lf
+*.py text eol=lf
+Dockerfile text eol=lf
+docker-entrypoint* text eol=lf
