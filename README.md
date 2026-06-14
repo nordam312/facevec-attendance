@@ -107,6 +107,9 @@ make ps
 
 Tear down with `make down` (keeps data) or `make clean` (removes volumes).
 
+> See [CONTRIBUTING.md](CONTRIBUTING.md) for local development and conventions,
+> and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the deployment guide.
+
 ### Environment strategy
 - The **root `.env`** holds the values `docker-compose.yml` interpolates and wires
   into every container. It is git-ignored; only `.env.example` is committed.
